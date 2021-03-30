@@ -116,7 +116,7 @@ func TestCreateTableSQLOk(t *testing.T) {
 
 	mock.ExpectQuery("^SHOW CREATE TABLE Test_Table$").WillReturnRows(rows)
 
-	result, err := createTableSQL(db, "Test_Table")
+	result, err := writeTableSQL(db, "Test_Table")
 
 	if err != nil {
 		t.Errorf("error was not expected while updating stats: %s", err)
@@ -148,7 +148,7 @@ func TestCreateTableValuesOk(t *testing.T) {
 
 	mock.ExpectQuery("^SELECT (.+) FROM test$").WillReturnRows(rows)
 
-	result, err := createTableValues(db, "test")
+	result, err := writeTableValues(db, "test")
 	if err != nil {
 		t.Errorf("error was not expected while updating stats: %s", err)
 	}
@@ -180,7 +180,7 @@ func TestCreateTableValuesNil(t *testing.T) {
 
 	mock.ExpectQuery("^SELECT (.+) FROM test$").WillReturnRows(rows)
 
-	result, err := createTableValues(db, "test")
+	result, err := writeTableValues(db, "test")
 	if err != nil {
 		t.Errorf("error was not expected while updating stats: %s", err)
 	}
@@ -215,7 +215,7 @@ func TestCreateTableOk(t *testing.T) {
 	mock.ExpectQuery("^SHOW CREATE TABLE Test_Table$").WillReturnRows(createTableRows)
 	mock.ExpectQuery("^SELECT (.+) FROM Test_Table$").WillReturnRows(createTableValueRows)
 
-	result, err := createTable(db, "Test_Table")
+	result, err := writeTable(db, "Test_Table")
 	if err != nil {
 		t.Errorf("error was not expected while updating stats: %s", err)
 	}
