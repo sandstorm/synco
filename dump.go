@@ -8,20 +8,6 @@ import (
 	"time"
 )
 
-type tableData struct {
-	Name   string
-	SQL    string
-	Values string
-}
-
-type dumpData struct {
-	DumpVersion   string
-	ServerVersion string
-	Tables        []*tableData
-	CompleteTime  string
-	Database      string
-}
-
 const version = "0.2.2"
 
 var comma = []byte{','}
@@ -37,11 +23,6 @@ func (d *Dumper) Dump(w io.Writer, db string, tables ...string) error {
 	// Use the database
 	if _, err = d.db.Exec("USE " + db); err != nil {
 		return fmt.Errorf("use database: %w", err)
-	}
-
-	data := dumpData{
-		DumpVersion: version,
-		Tables:      make([]*tableData, 0),
 	}
 
 	// Get server version
@@ -71,17 +52,12 @@ USE %[3]s;
 
 `, version, serverVer, db)
 
-	// Get sql for each table
+	// Write sql for each table
 	for _, t := range tables {
-		if t, err := writeTable(w, d.db, t); err == nil {
-			data.Tables = append(data.Tables, t)
-		} else {
+		if err := writeTable(w, d.db, t); err != nil {
 			return err
 		}
 	}
-
-	// Set complete time
-	data.CompleteTime = time.Now().String()
 
 	fmt.Fprintf(w, "\n-- Dump completed on %s", time.Now())
 
@@ -133,9 +109,8 @@ func getServerVersion(db *sql.DB) (string, error) {
 	return server_version.String, nil
 }
 
-func writeTable(w io.Writer, db *sql.DB, name string) (*tableData, error) {
+func writeTable(w io.Writer, db *sql.DB, name string) error {
 	var err error
-	t := &tableData{Name: name}
 
 	fmt.Fprintf(w, `--
 -- Table structure for table %[1]s
@@ -148,7 +123,7 @@ DROP TABLE IF EXISTS %[1]s;
 `, name)
 
 	if err = writeTableSQL(w, db, name); err != nil {
-		return nil, fmt.Errorf("write table SQL: %w", err)
+		return fmt.Errorf("write table SQL: %w", err)
 	}
 
 	fmt.Fprintf(w, `
@@ -162,7 +137,7 @@ LOCK TABLES %[1]s WRITE;
 `, name)
 
 	if err = writeTableValues(w, db, name); err != nil {
-		return nil, fmt.Errorf("write table rows: %w", err)
+		return fmt.Errorf("write table rows: %w", err)
 	}
 
 	fmt.Fprintf(w, `
@@ -170,7 +145,7 @@ LOCK TABLES %[1]s WRITE;
 UNLOCK TABLES;
 `, name)
 
-	return t, nil
+	return nil
 }
 
 func writeTableSQL(w io.Writer, db *sql.DB, name string) error {
