@@ -3,24 +3,24 @@ package mysqldump
 import (
 	"database/sql"
 	"errors"
-	"os"
-	"path"
+	"io"
 	"strings"
 	"text/template"
 	"time"
 )
 
-type table struct {
+type tableData struct {
 	Name   string
 	SQL    string
 	Values string
 }
 
-type dump struct {
+type dumpData struct {
 	DumpVersion   string
 	ServerVersion string
-	Tables        []*table
+	Tables        []*tableData
 	CompleteTime  string
+	Database      string
 }
 
 const version = "0.2.2"
@@ -29,6 +29,9 @@ const tmpl = `-- Go SQL Dump {{ .DumpVersion }}
 --
 -- ------------------------------------------------------
 -- Server version	{{ .ServerVersion }}
+
+CREATE DATABASE IF NOT EXISTS {{ .Database }};
+USE {{ .Database }};
 
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
 /*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
@@ -68,47 +71,24 @@ UNLOCK TABLES;
 `
 
 // Creates a MYSQL Dump based on the options supplied through the dumper.
-func (d *Dumper) Dump() (string, error) {
-	name := time.Now().Format(d.format)
-	p := path.Join(d.dir, name+".sql")
+func (d *Dumper) Dump(w io.Writer, db string, tableName string) error {
+	var err error
 
-	// Check dump directory
-	if e, _ := exists(p); e {
-		return p, errors.New("Dump '" + name + "' already exists.")
-	}
-
-	// Create .sql file
-	f, err := os.Create(p)
-
-	if err != nil {
-		return p, err
-	}
-
-	defer f.Close()
-
-	data := dump{
+	data := dumpData{
 		DumpVersion: version,
-		Tables:      make([]*table, 0),
+		Tables:      make([]*tableData, 0),
 	}
 
 	// Get server version
 	if data.ServerVersion, err = getServerVersion(d.db); err != nil {
-		return p, err
-	}
-
-	// Get tables
-	tables, err := getTables(d.db)
-	if err != nil {
-		return p, err
+		return err
 	}
 
 	// Get sql for each table
-	for _, name := range tables {
-		if t, err := createTable(d.db, name); err == nil {
-			data.Tables = append(data.Tables, t)
-		} else {
-			return p, err
-		}
+	if t, err := createTable(d.db, tableName); err == nil {
+		data.Tables = append(data.Tables, t)
+	} else {
+		return err
 	}
 
 	// Set complete time
@@ -117,20 +97,16 @@ func (d *Dumper) Dump() (string, error) {
 	// Write dump to file
 	t, err := template.New("mysqldump").Parse(tmpl)
 	if err != nil {
-		return p, err
+		return err
 	}
-	if err = t.Execute(f, data); err != nil {
-		return p, err
-	}
-
-	return p, nil
+	return t.Execute(w, data)
 }
 
-func getTables(db *sql.DB) ([]string, error) {
+func (d *Dumper) GetTables() ([]string, error) {
 	tables := make([]string, 0)
 
 	// Get table list
-	rows, err := db.Query("SHOW TABLES")
+	rows, err := d.db.Query("SHOW TABLES")
 	if err != nil {
 		return tables, err
 	}
@@ -155,9 +131,9 @@ func getServerVersion(db *sql.DB) (string, error) {
 	return server_version.String, nil
 }
 
-func createTable(db *sql.DB, name string) (*table, error) {
+func createTable(db *sql.DB, name string) (*tableData, error) {
 	var err error
-	t := &table{Name: name}
+	t := &tableData{Name: name}
 
 	if t.SQL, err = createTableSQL(db, name); err != nil {
 		return nil, err
