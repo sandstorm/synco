@@ -3,6 +3,7 @@ package mysqldump
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	"io"
 	"strings"
 	"text/template"
@@ -70,9 +71,14 @@ UNLOCK TABLES;
 -- Dump completed on {{ .CompleteTime }}
 `
 
-// Creates a MYSQL Dump based on the options supplied through the dumper.
-func (d *Dumper) Dump(w io.Writer, db string, tableName string) error {
+// Dump dumps one or more tables from a database into a writer
+func (d *Dumper) Dump(w io.Writer, db string, tables ...string) error {
 	var err error
+
+	// Use the database
+	if _, err = d.db.Exec("USE " + db); err != nil {
+		return fmt.Errorf("use database: %w", err)
+	}
 
 	data := dumpData{
 		DumpVersion: version,
@@ -85,10 +91,12 @@ func (d *Dumper) Dump(w io.Writer, db string, tableName string) error {
 	}
 
 	// Get sql for each table
-	if t, err := createTable(d.db, tableName); err == nil {
-		data.Tables = append(data.Tables, t)
-	} else {
-		return err
+	for _, t := range tables {
+		if t, err := createTable(d.db, t); err == nil {
+			data.Tables = append(data.Tables, t)
+		} else {
+			return err
+		}
 	}
 
 	// Set complete time
@@ -102,7 +110,23 @@ func (d *Dumper) Dump(w io.Writer, db string, tableName string) error {
 	return t.Execute(w, data)
 }
 
-func (d *Dumper) GetTables() ([]string, error) {
+// DumpAllTables dumps all tables in a database into a writer
+func (d *Dumper) DumpAllTables(w io.Writer, db string) error {
+	// Use the database
+	if _, err := d.db.Exec("USE " + db); err != nil {
+		return fmt.Errorf("use database: %w", err)
+	}
+
+	// List tables in the database
+	tables, err := d.getTables()
+	if err != nil {
+		return fmt.Errorf("list tables: %w", err)
+	}
+
+	return d.Dump(w, db, tables...)
+}
+
+func (d *Dumper) getTables() ([]string, error) {
 	tables := make([]string, 0)
 
 	// Get table list
