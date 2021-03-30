@@ -11,17 +11,20 @@ import (
 const version = "0.2.2"
 
 var comma = []byte{','}
+var quote = []byte{'\''}
 
 // Dumper represents a database.
 type Dumper struct {
 	db *sql.DB
 }
 
+// NewDumper creates a new dumper instance.
 func NewDumper(db *sql.DB) *Dumper {
 	return &Dumper{db}
 }
 
-// Dump dumps one or more tables from a database into a writer
+// Dump dumps one or more tables from a database into a writer.
+// If dbName is not empty, a "USE xxx" command will be sent prior to commencing the dump.
 func (d *Dumper) Dump(w io.Writer, dbName string, tables ...string) error {
 	var err error
 
@@ -73,8 +76,9 @@ USE %[3]s;
 }
 
 // DumpAllTables dumps all tables in a database into a writer
-func (d *Dumper) DumpAllTables(w io.Writer, db string) error {
-	if err := d.use(db); err != nil {
+// If dbName is not empty, a "USE xxx" command will be sent prior to commencing the dump.
+func (d *Dumper) DumpAllTables(w io.Writer, dbName string) error {
+	if err := d.use(dbName); err != nil {
 		return err
 	}
 
@@ -84,7 +88,7 @@ func (d *Dumper) DumpAllTables(w io.Writer, db string) error {
 		return fmt.Errorf("list tables: %w", err)
 	}
 
-	return d.Dump(w, db, tables...)
+	return d.Dump(w, dbName, tables...)
 }
 
 func (d *Dumper) use(db string) error {
@@ -164,6 +168,8 @@ LOCK TABLES %[1]s WRITE;
 
 /*!40000 ALTER TABLE %s ENABLE KEYS */;
 UNLOCK TABLES;
+
+-- Finished table data dump
 `, name)
 
 	return nil
@@ -183,6 +189,7 @@ func writeTableSQL(w io.Writer, db *sql.DB, name string) error {
 	}
 
 	io.WriteString(w, table_sql.String)
+	w.Write([]byte{';'})
 
 	return nil
 }
@@ -222,6 +229,8 @@ func writeTableValues(w io.Writer, db *sql.DB, name string) error {
 		}
 	}
 
+	w.Write([]byte{';'})
+
 	return nil
 }
 
@@ -241,7 +250,9 @@ func writeValues(w io.Writer, rows *sql.Rows, columns []string) error {
 
 	for i, v := range data {
 		if v != nil && v.Valid {
-			fmt.Fprint(w, "'", v.String, "'")
+			w.Write(quote)
+			writeEscapedString(w, v.String)
+			w.Write(quote)
 		} else {
 			fmt.Fprint(w, "null")
 		}
@@ -253,4 +264,42 @@ func writeValues(w io.Writer, rows *sql.Rows, columns []string) error {
 
 	w.Write([]byte{')'})
 	return nil
+}
+
+// Taken from https://gist.github.com/siddontang/8875771
+func writeEscapedString(w io.Writer, str string) {
+	b := make([]byte, 2)
+
+	var escape byte
+	for i := 0; i < len(str); i++ {
+		c := str[i]
+
+		escape = 0
+
+		switch c {
+		case 0: /* Must be escaped for 'mysql' */
+			escape = '0'
+		case '\n': /* Must be escaped for logs */
+			escape = 'n'
+		case '\r':
+			escape = 'r'
+		case '\\':
+			escape = '\\'
+		case '\'':
+			escape = '\''
+		case '"': /* Better safe than sorry */
+			escape = '"'
+		case '\032': /* This gives problems on Win32 */
+			escape = 'Z'
+		}
+
+		if escape != 0 {
+			b[0] = '\\'
+			b[1] = escape
+			w.Write(b)
+		} else {
+			b[0] = c
+			w.Write(b[0:1])
+		}
+	}
 }
