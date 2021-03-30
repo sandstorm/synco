@@ -12,22 +12,30 @@ const version = "0.2.2"
 
 var comma = []byte{','}
 
+// Dumper represents a database.
+type Dumper struct {
+	db *sql.DB
+}
+
+func NewDumper(db *sql.DB) *Dumper {
+	return &Dumper{db}
+}
+
 // Dump dumps one or more tables from a database into a writer
-func (d *Dumper) Dump(w io.Writer, db string, tables ...string) error {
+func (d *Dumper) Dump(w io.Writer, dbName string, tables ...string) error {
 	var err error
 
 	if len(tables) == 0 {
 		return errors.New("no tables to back up")
 	}
 
-	// Use the database
-	if _, err = d.db.Exec("USE " + db); err != nil {
-		return fmt.Errorf("use database: %w", err)
-	}
-
 	// Get server version
 	serverVer, err := getServerVersion(d.db)
 	if err != nil {
+		return err
+	}
+
+	if err = d.use(dbName); err != nil {
 		return err
 	}
 
@@ -50,7 +58,7 @@ USE %[3]s;
 /*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
 /*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
 
-`, version, serverVer, db)
+`, version, serverVer, dbName)
 
 	// Write sql for each table
 	for _, t := range tables {
@@ -66,9 +74,8 @@ USE %[3]s;
 
 // DumpAllTables dumps all tables in a database into a writer
 func (d *Dumper) DumpAllTables(w io.Writer, db string) error {
-	// Use the database
-	if _, err := d.db.Exec("USE " + db); err != nil {
-		return fmt.Errorf("use database: %w", err)
+	if err := d.use(db); err != nil {
+		return err
 	}
 
 	// List tables in the database
@@ -78,6 +85,17 @@ func (d *Dumper) DumpAllTables(w io.Writer, db string) error {
 	}
 
 	return d.Dump(w, db, tables...)
+}
+
+func (d *Dumper) use(db string) error {
+	if db != "" {
+		// Use the database
+		if _, err := d.db.Exec("USE " + db); err != nil {
+			return fmt.Errorf("use database: %w", err)
+		}
+	}
+
+	return nil
 }
 
 func (d *Dumper) getTables() ([]string, error) {
@@ -127,6 +145,7 @@ DROP TABLE IF EXISTS %[1]s;
 	}
 
 	fmt.Fprintf(w, `
+
 /*!40101 SET character_set_client = @saved_cs_client */;
 --
 -- Dumping data for table %s
@@ -134,6 +153,7 @@ DROP TABLE IF EXISTS %[1]s;
 
 LOCK TABLES %[1]s WRITE;
 /*!40000 ALTER TABLE %[1]s DISABLE KEYS */;
+
 `, name)
 
 	if err = writeTableValues(w, db, name); err != nil {
@@ -141,6 +161,7 @@ LOCK TABLES %[1]s WRITE;
 	}
 
 	fmt.Fprintf(w, `
+
 /*!40000 ALTER TABLE %s ENABLE KEYS */;
 UNLOCK TABLES;
 `, name)
