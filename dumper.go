@@ -29,7 +29,7 @@ func (d *Dumper) Dump(w io.Writer, dbName string, tables ...string) error {
 	var err error
 
 	if len(tables) == 0 {
-		return errors.New("no tables to back up")
+		return nil
 	}
 
 	// Get server version
@@ -221,7 +221,7 @@ func writeTableValues(w io.Writer, db *sql.DB, name string) error {
 
 		// Read the remaining rows
 		for rows.Next() {
-			w.Write(comma)
+			w.Write([]byte{',', '\n', '\t'})
 
 			if err = writeValues(w, rows, columns); err != nil {
 				return fmt.Errorf("write values: %w", err)
