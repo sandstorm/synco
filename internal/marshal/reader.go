@@ -5,45 +5,36 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 )
 
 var ErrInvalidMarker = errors.New("invalid marker")
 
 type Reader struct {
-	r   io.Reader
-	br  *bufio.Reader
-	dec *json.Decoder
+	r  io.Reader
+	br *bufio.Reader
 }
 
 func NewReader(r io.Reader) *Reader {
 	br := bufio.NewReader(r)
 
 	return &Reader{
-		r:   r,
-		br:  br,
-		dec: json.NewDecoder(br),
+		r:  r,
+		br: br,
 	}
 }
 
 func (r *Reader) decodePrefixed(v interface{}) error {
 	var len uint32
 	if err := binary.Read(r.br, binary.LittleEndian, &len); err != nil {
-		return err
+		return fmt.Errorf("read length: %w", err)
 	}
 
-	// lr := io.LimitReader(r.br, int64(len))
-	// dec := json.NewDecoder(lr)
+	lr := io.LimitReader(r.br, int64(len))
+	dec := json.NewDecoder(lr)
 
-	// return dec.Decode(v)
-
-	b := make([]byte, len)
-	_, err := io.ReadFull(r.br, b)
-	if err != nil {
-		return err
-	}
-
-	return json.Unmarshal(b, v)
+	return dec.Decode(v)
 }
 
 func (r *Reader) ReadFileHeader() (h *FileHeader, err error) {
@@ -61,7 +52,11 @@ func (r *Reader) ReadFileHeader() (h *FileHeader, err error) {
 func (r *Reader) ReadTableHeader() (h *TableHeader, err error) {
 	m, err := r.br.ReadByte()
 	if err != nil {
-		return nil, err
+		if errors.Is(err, io.EOF) {
+			return nil, err
+		}
+
+		return nil, fmt.Errorf("read marker: %w", err)
 	}
 	if m != MarkerTable {
 		r.br.UnreadByte()
@@ -72,32 +67,40 @@ func (r *Reader) ReadTableHeader() (h *TableHeader, err error) {
 	return
 }
 
-func (r *Reader) ReadRows(c chan<- RowData) error {
-	defer close(c)
+func (r *Reader) ReadRows() (rows <-chan RowData, err <-chan error) {
+	crows := make(chan []*string)
+	cerr := make(chan error)
 
-	for {
-		var d RowData
+	go func() {
+		defer close(crows)
+		defer close(cerr)
 
-		m, err := r.br.ReadByte()
-		if err != nil {
-			if errors.Is(err, io.EOF) {
+		for {
+			var d RowData
+
+			m, err := r.br.ReadByte()
+			if err != nil {
+				if errors.Is(err, io.EOF) {
+					break
+				}
+
+				cerr <- fmt.Errorf("read marker: %w", err)
+				return
+			}
+			if m != MarkerRow {
+				r.br.UnreadByte()
 				break
 			}
 
-			return err
-		}
-		if m != MarkerRow {
-			r.br.UnreadByte()
-			break
-		}
+			err = r.decodePrefixed(&d)
+			if err != nil {
+				cerr <- err
+				return
+			}
 
-		err = r.decodePrefixed(&d)
-		if err != nil {
-			return err
+			crows <- d
 		}
+	}()
 
-		c <- d
-	}
-
-	return nil
+	return crows, cerr
 }
