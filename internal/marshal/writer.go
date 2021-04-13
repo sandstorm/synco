@@ -1,23 +1,18 @@
 package marshal
 
 import (
-	"bufio"
 	"encoding/binary"
 	"encoding/json"
 	"io"
 )
 
 type Writer struct {
-	w   io.Writer
-	enc *json.Encoder
+	w io.Writer
 }
 
 func NewWriter(w io.Writer) *Writer {
-	bw := bufio.NewWriter(w)
-
 	return &Writer{
-		w:   w,
-		enc: json.NewEncoder(bw),
+		w: w,
 	}
 }
 
