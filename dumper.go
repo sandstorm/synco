@@ -10,7 +10,7 @@ import (
 	binary "github.com/MouseHatGames/go-mysqldump/internal/marshal"
 )
 
-const version = "0.2.2"
+const version = "1.0.0"
 
 var comma = []byte{','}
 var commaNewline = []byte{',', '\n', '\t'}
