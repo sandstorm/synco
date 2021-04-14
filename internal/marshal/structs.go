@@ -17,6 +17,7 @@ type FileHeader struct {
 
 type TableHeader struct {
 	Name      string
+	Columns   []string
 	CreateSQL string
 }
 

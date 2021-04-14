@@ -59,7 +59,7 @@ func (d *Dumper) Dump(dbName string, tables ...string) error {
 
 	// Write sql for each table
 	for _, t := range tables {
-		if err := d.writeTable(t); err != nil {
+		if err := d.writeTable(t, dbName); err != nil {
 			return err
 		}
 	}
@@ -123,17 +123,23 @@ func getServerVersion(db *sql.DB) (string, error) {
 	return server_version.String, nil
 }
 
-func (d *Dumper) writeTable(name string) error {
+func (d *Dumper) writeTable(name string, schema string) error {
 	var err error
 
 	sql, err := getTableSQL(d.db, name)
 	if err != nil {
-		return fmt.Errorf("write table SQL: %w", err)
+		return fmt.Errorf("get table SQL: %w", err)
+	}
+
+	cols, err := getTableColumns(d.db, name, schema)
+	if err != nil {
+		return fmt.Errorf("get table columns: %w", err)
 	}
 
 	d.bin.WriteTableHeader(&binary.TableHeader{
 		Name:      name,
 		CreateSQL: sql,
+		Columns:   cols,
 	})
 
 	if err = d.writeTableValues(name); err != nil {
@@ -157,6 +163,25 @@ func getTableSQL(db *sql.DB, name string) (string, error) {
 	}
 
 	return table_sql.String, nil
+}
+
+func getTableColumns(db *sql.DB, table string, schema string) (cols []string, err error) {
+	rows, err := db.Query("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = ? AND TABLE_SCHEMA = ?", table, schema)
+	if err != nil {
+		return nil, err
+	}
+
+	var column string
+	for rows.Next() {
+		err = rows.Scan(&column)
+		if err != nil {
+			return nil, err
+		}
+
+		cols = append(cols, column)
+	}
+
+	return
 }
 
 func (d *Dumper) writeTableValues(name string) error {
