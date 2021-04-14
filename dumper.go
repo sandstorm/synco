@@ -13,6 +13,7 @@ import (
 const version = "0.2.2"
 
 var comma = []byte{','}
+var commaNewline = []byte{',', '\n', '\t'}
 var quote = []byte{'\''}
 
 // Dumper represents a database.

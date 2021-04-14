@@ -25,9 +25,14 @@ func NewReader(r io.Reader) *Reader {
 	}
 }
 
+func (r *Reader) readLength() (len uint32, err error) {
+	err = binary.Read(r.br, binary.LittleEndian, &len)
+	return
+}
+
 func (r *Reader) decodePrefixed(v interface{}) error {
-	var len uint32
-	if err := binary.Read(r.br, binary.LittleEndian, &len); err != nil {
+	len, err := r.readLength()
+	if err != nil {
 		return fmt.Errorf("read length: %w", err)
 	}
 
@@ -103,4 +108,29 @@ func (r *Reader) ReadRows() (rows <-chan RowData, err <-chan error) {
 	}()
 
 	return crows, cerr
+}
+
+func (r *Reader) SkipRows() error {
+	for {
+		m, err := r.br.ReadByte()
+		if err != nil {
+			return fmt.Errorf("read row marker: %w", err)
+		}
+		if m != MarkerRow {
+			r.br.UnreadByte()
+			break
+		}
+
+		len, err := r.readLength()
+		if err != nil {
+			return fmt.Errorf("read row length: %w", err)
+		}
+
+		_, err = r.br.Discard(int(len))
+		if err != nil {
+			return fmt.Errorf("discard bytes: %w", err)
+		}
+	}
+
+	return nil
 }
