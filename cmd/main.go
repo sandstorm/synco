@@ -1,11 +1,13 @@
 package main
 
 import (
+	"crypto/md5"
+	"encoding/hex"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
-	"log"
+	"io/ioutil"
 	"os"
 	"strings"
 
@@ -15,19 +17,20 @@ import (
 
 func failIfErr(err error, msg string) {
 	if err != nil {
-		log.Prefix()
-		log.Fatalf("%s: %s", msg, err)
+		fmt.Fprintf(os.Stderr, "%s: %s\n", msg, err)
+		os.Exit(1)
 	}
 }
 
 func main() {
 	tablesStr := flag.String("tables", "", "comma-separated list of tables to export, if empty all tables will be exported")
 	info := flag.Bool("info", false, "only print information about the dump")
+	verifyHash := flag.Bool("verify", false, "compare hash of the dump to a .md5 file")
 	flag.Parse()
 
 	dumpPath := flag.Arg(0)
 
-	var in io.Reader
+	var in io.ReadSeeker
 	if dumpPath == "" || dumpPath == "-" {
 		in = os.Stdin
 	} else {
@@ -38,8 +41,24 @@ func main() {
 		in = f
 	}
 
+	if *verifyHash && in != os.Stdin {
+		v, err := verify(in, dumpPath)
+		failIfErr(err, "failed to verify dump hash")
+
+		if v {
+			fmt.Println("✔ Successfully verified dump")
+		} else {
+			fmt.Println("✖ Failed to verify dump integrity")
+		}
+
+		in.Seek(0, 0)
+	}
+
 	if *info {
 		failIfErr(printInfo(in), "failed to print dump info")
+	}
+
+	if *verifyHash || *info {
 		return
 	}
 
@@ -52,6 +71,26 @@ func main() {
 		Tables: tables,
 	})
 	failIfErr(err, "failed to convert dump file")
+}
+
+func verify(in io.Reader, dumpPath string) (bool, error) {
+	hashPath := dumpPath + ".md5"
+
+	b, err := ioutil.ReadFile(hashPath)
+	if err != nil {
+		return false, fmt.Errorf("read hash file at: %w", err)
+	}
+
+	hash := md5.New()
+
+	_, err = io.Copy(hash, in)
+	if err != nil {
+		return false, err
+	}
+
+	hashStr := hex.EncodeToString(hash.Sum(nil))
+
+	return hashStr == string(b), nil
 }
 
 func printInfo(in io.Reader) error {
