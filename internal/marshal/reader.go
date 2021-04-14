@@ -14,6 +14,8 @@ var ErrInvalidMarker = errors.New("invalid marker")
 type Reader struct {
 	r  io.Reader
 	br *bufio.Reader
+
+	isSkipping bool
 }
 
 func NewReader(r io.Reader) *Reader {
@@ -72,7 +74,7 @@ func (r *Reader) ReadTableHeader() (h *TableHeader, err error) {
 	return
 }
 
-func (r *Reader) ReadRows() (rows <-chan RowData, err <-chan error) {
+func (r *Reader) ReadRows(ncol int) (rows <-chan RowData, err <-chan error) {
 	crows := make(chan []*string)
 	cerr := make(chan error)
 
@@ -81,7 +83,7 @@ func (r *Reader) ReadRows() (rows <-chan RowData, err <-chan error) {
 		defer close(cerr)
 
 		for {
-			var d RowData
+			d := make([]*string, ncol)
 
 			m, err := r.br.ReadByte()
 			if err != nil {
@@ -97,9 +99,9 @@ func (r *Reader) ReadRows() (rows <-chan RowData, err <-chan error) {
 				break
 			}
 
-			err = r.decodePrefixed(&d)
+			err = r.readRow(d)
 			if err != nil {
-				cerr <- err
+				cerr <- fmt.Errorf("read row: %w", err)
 				return
 			}
 
@@ -110,7 +112,60 @@ func (r *Reader) ReadRows() (rows <-chan RowData, err <-chan error) {
 	return crows, cerr
 }
 
-func (r *Reader) SkipRows() error {
+func (r *Reader) readRow(cols []*string) error {
+	for i := 0; i < len(cols); i++ {
+		// Read null marker
+		nullMarker, err := r.br.ReadByte()
+		if err != nil {
+			return fmt.Errorf("read null marker: %w", err)
+		}
+
+		// If it's 0, the value is null and we continue with the next value
+		if nullMarker == 0 {
+			cols[i] = nil
+			continue
+		}
+
+		// Peek enough bytes to decode a varint
+		buf, err := r.br.Peek(binary.MaxVarintLen64)
+		if err != nil {
+			return fmt.Errorf("read data length: %w", err)
+		}
+
+		// Decode the varint from the peeked bytes
+		len, n := binary.Uvarint(buf)
+		if n <= 0 {
+			return errors.New("failed to decode data length")
+		}
+
+		// Discard the bytes the varint used and advance
+		r.br.Discard(n)
+
+		if r.isSkipping {
+			r.br.Discard(int(len))
+		} else {
+			buf = make([]byte, len)
+			_, err = io.ReadFull(r.br, buf)
+			if err != nil {
+				return fmt.Errorf("read value: %w", err)
+			}
+
+			str := string(buf)
+			cols[i] = &str
+		}
+	}
+
+	return nil
+}
+
+func (r *Reader) SkipRows(ncol int) error {
+	cols := make([]*string, ncol)
+
+	r.isSkipping = true
+	defer func() {
+		r.isSkipping = false
+	}()
+
 	for {
 		m, err := r.br.ReadByte()
 		if err != nil {
@@ -121,14 +176,9 @@ func (r *Reader) SkipRows() error {
 			break
 		}
 
-		len, err := r.readLength()
+		err = r.readRow(cols)
 		if err != nil {
-			return fmt.Errorf("read row length: %w", err)
-		}
-
-		_, err = r.br.Discard(int(len))
-		if err != nil {
-			return fmt.Errorf("discard bytes: %w", err)
+			return fmt.Errorf("skip row: %w", err)
 		}
 	}
 

@@ -46,5 +46,24 @@ func (d *Writer) WriteTableHeader(h *TableHeader) error {
 func (d *Writer) WriteRowData(r RowData) error {
 	d.w.Write([]byte{MarkerRow})
 
-	return d.writePrefixed(r)
+	buf := make([]byte, binary.MaxVarintLen64)
+
+	for _, v := range r {
+		// Write null marker: 0 if null, 1 if not
+		if v == nil {
+			d.w.Write([]byte{0})
+			continue
+		} else {
+			d.w.Write([]byte{1})
+		}
+
+		// Encode the value length as a varint
+		n := binary.PutUvarint(buf, uint64(len(*v)))
+		d.w.Write(buf[:n])
+
+		// Write the string value as bytes
+		d.w.Write([]byte(*v))
+	}
+
+	return nil
 }

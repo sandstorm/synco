@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"sort"
+	"strings"
 
 	"github.com/MouseHatGames/go-mysqldump/internal/marshal"
 )
@@ -67,7 +68,7 @@ USE %[3]s;
 		})
 		if len(opt.Tables) > 0 && i == len(opt.Tables) {
 			log.Printf("skipping %s", t.Name)
-			r.SkipRows()
+			r.SkipRows(len(t.Columns))
 			continue
 		}
 
@@ -83,7 +84,7 @@ DROP TABLE IF EXISTS %[1]s;
 
 		w.Write([]byte(t.CreateSQL))
 
-		fmt.Fprintf(w, `
+		fmt.Fprintf(w, `;
 
 /*!40101 SET character_set_client = @saved_cs_client */;
 --
@@ -94,10 +95,10 @@ LOCK TABLES %[1]s WRITE;
 
 `, t.Name)
 
-		rows, errs := r.ReadRows()
+		rows, errs := r.ReadRows(len(t.Columns))
 
 		if r, ok := <-rows; ok {
-			fmt.Fprintf(w, "INSERT INTO %s VALUES ", t.Name)
+			fmt.Fprintf(w, "INSERT INTO %s(`%s`) VALUES ", t.Name, strings.Join(t.Columns, "`,`"))
 			writeRow(w, r)
 		}
 
