@@ -22,20 +22,39 @@ func failIfErr(err error, msg string) {
 	}
 }
 
+var (
+	tablesStr  = flag.String("tables", "", "comma-separated list of tables to export, if empty all tables will be exported")
+	info       = flag.Bool("info", false, "only print information about the dump")
+	verifyHash = flag.Bool("verify", false, "compare hash of the dump to a .md5 file")
+)
+
 func main() {
-	tablesStr := flag.String("tables", "", "comma-separated list of tables to export, if empty all tables will be exported")
-	info := flag.Bool("info", false, "only print information about the dump")
-	verifyHash := flag.Bool("verify", false, "compare hash of the dump to a .md5 file")
 	flag.Parse()
 
-	dumpPath := flag.Arg(0)
+	args := flag.Args()
+	for _, v := range args {
+		if len(args) > 1 {
+			fmt.Printf("%s:\n", v)
+		}
 
+		err := doDump(v)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+		}
+
+		fmt.Println()
+	}
+}
+
+func doDump(dumpPath string) error {
 	var in io.ReadSeeker
 	if dumpPath == "" || dumpPath == "-" {
 		in = os.Stdin
 	} else {
 		f, err := os.Open(dumpPath)
-		failIfErr(err, "failed to open dump file")
+		if err != nil {
+			return fmt.Errorf("failed to open dump file: %w", err)
+		}
 		defer f.Close()
 
 		in = f
@@ -43,7 +62,9 @@ func main() {
 
 	if *verifyHash && in != os.Stdin {
 		v, err := verify(in, dumpPath)
-		failIfErr(err, "failed to verify dump hash")
+		if err != nil {
+			return fmt.Errorf("failed to verify dump hash: %w", err)
+		}
 
 		if v {
 			fmt.Println("✔ Successfully verified dump")
@@ -55,11 +76,14 @@ func main() {
 	}
 
 	if *info {
-		failIfErr(printInfo(in), "failed to print dump info")
+		err := printInfo(in)
+		if err != nil {
+			return fmt.Errorf("failed to print dump info: %w", err)
+		}
 	}
 
 	if *verifyHash || *info {
-		return
+		return nil
 	}
 
 	var tables []string
@@ -70,7 +94,11 @@ func main() {
 	err := mysqldump.ConvertToSQL(in, os.Stdout, mysqldump.ConvertOptions{
 		Tables: tables,
 	})
-	failIfErr(err, "failed to convert dump file")
+	if err != nil {
+		return fmt.Errorf("failed to convert dump file: %w", err)
+	}
+
+	return nil
 }
 
 func verify(in io.Reader, dumpPath string) (bool, error) {
