@@ -139,7 +139,8 @@ func (r *Reader) readRow(cols []*string) error {
 		}
 
 		// Discard the bytes the varint used and advance
-		r.br.Discard(n)
+		//r.br.Discard(n)
+		r.br.Discard(binary.MaxVarintLen64)
 
 		if r.isSkipping {
 			r.br.Discard(int(len))

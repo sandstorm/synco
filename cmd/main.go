@@ -1,159 +1,193 @@
 package main
 
 import (
-	"crypto/md5"
-	"encoding/hex"
-	"errors"
-	"flag"
+	"bitbucket.org/nfnty_admin/std_pkg/cli"
+	"bitbucket.org/nfnty_admin/std_pkg/db/mysql"
+	"bytes"
 	"fmt"
-	"io"
-	"io/ioutil"
-	"os"
-	"strings"
-
 	"github.com/MouseHatGames/go-mysqldump"
-	"github.com/MouseHatGames/go-mysqldump/internal/marshal"
+	"github.com/sirupsen/logrus"
+	"io"
+	"net/http"
+	"os"
+	"sync"
+	"time"
 )
 
-func failIfErr(err error, msg string) {
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "%s: %s\n", msg, err)
-		os.Exit(1)
-	}
+type Configuration struct {
+	SourceMysql mysql.Opts `command:"source_mysql"`
+	TargetMysql mysql.Opts `command:"target_mysql"`
+
+	// source options
+	ChunkSize   int        `command:"chunk_size,default=0"`
+
+	// target options
+	QuerySize   int        `command:"query_size,default=1000000"`
+	Verbose     int        `command:"verbose,default=0"`
+	WorkerCount int        `command:"worker_count,default=10"` // unused for now
 }
 
-var (
-	tablesStr  = flag.String("tables", "", "comma-separated list of tables to export, if empty all tables will be exported")
-	info       = flag.Bool("info", false, "only print information about the dump")
-	verifyHash = flag.Bool("verify", false, "compare hash of the dump to a .md5 file")
-)
+var c *Configuration
 
 func main() {
-	flag.Parse()
+	command := cli.Initialize("DB dumper", &c)
+	command.OnRun(func() {
+		start := time.Now()
+		defer func() {
+			logrus.Info(time.Now().Sub(start).String())
+		}()
 
-	args := flag.Args()
-	for _, v := range args {
-		if len(args) > 1 {
-			fmt.Printf("%s:\n", v)
-		}
+		var wg sync.WaitGroup
 
-		err := doDump(v)
-		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-		}
+		var writerGroup sync.WaitGroup
 
-		fmt.Println()
-	}
-}
+		pr, pw := io.Pipe()
 
-func doDump(dumpPath string) error {
-	var in io.ReadSeeker
-	if dumpPath == "" || dumpPath == "-" {
-		in = os.Stdin
-	} else {
-		f, err := os.Open(dumpPath)
-		if err != nil {
-			return fmt.Errorf("failed to open dump file: %w", err)
-		}
-		defer f.Close()
 
-		in = f
-	}
+		wg.Add(1)
+		go func() {
+			db, err := mysql.NewMysqlClient(&c.SourceMysql)
+			if err != nil {
+				logrus.Fatal(err)
+			}
+			dumper := mysqldump.NewDumper(db, pw, c.ChunkSize)
+			err = dumper.DumpAllTables(c.SourceMysql.Database, &writerGroup)
+			if err != nil {
+				logrus.Fatal(err)
+			}
+			pw.Close()
+			wg.Done()
+		}()
 
-	if *verifyHash && in != os.Stdin {
-		v, err := verify(in, dumpPath)
-		if err != nil {
-			return fmt.Errorf("failed to verify dump hash: %w", err)
-		}
+		db, err := mysql.NewMysqlClient(&c.TargetMysql)
 
-		if v {
-			fmt.Println("✔ Successfully verified dump")
-		} else {
-			fmt.Println("✖ Failed to verify dump integrity")
-		}
+		queryWorker := make(chan string, 100)
+		wg.Add(1)
+		rq := 1
 
-		in.Seek(0, 0)
-	}
+		runningQueries := 0
+		rqMutex := sync.Mutex{}
+		locked := false
+		rqDone := false
+		go func() {
+			for q := range queryWorker {
 
-	if *info {
-		err := printInfo(in)
-		if err != nil {
-			return fmt.Errorf("failed to print dump info: %w", err)
-		}
-	}
+				if c.Verbose > 0 {
+					os.Stdout.WriteString(fmt.Sprintf("/** Running Query: %d **/;\n", rq))
+				}
+				rq++
+				_, err := db.Exec(q)
+				if err != nil {
+					logrus.Fatal(err)
+				}
 
-	if *verifyHash || *info {
-		return nil
-	}
+				if c.Verbose > 0 {
+					os.Stdout.WriteString(q)
+				}
+				rqMutex.Lock()
+				runningQueries--
+				if runningQueries == 0 && locked {
+					locked = false
+					os.Stdout.WriteString("Caught up with running queries, allowing next read block.\n")
+					writerGroup.Done()
+				}
+				if runningQueries == 0 && rqDone {
+					break
+				}
+				rqMutex.Unlock()
+			}
+			wg.Done()
+		}()
 
-	var tables []string
-	if *tablesStr != "" {
-		tables = strings.Split(*tablesStr, ",")
-	}
+		wg.Add(1)
+		sq := 1
+		go func() {
+			w := newChanWriter()
+			flusher := make(chan bool, 1)
+			ready := make(chan bool, 1)
+			if err != nil {
+				logrus.Fatal(err)
+			}
 
-	err := mysqldump.ConvertToSQL(in, os.Stdout, mysqldump.ConvertOptions{
-		Tables: tables,
+			go func() {
+				for _ = range flusher {
+					data := w.Flush()
+					q := fmt.Sprintf(`
+/*!40101 SET NAMES utf8 */;
+/*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;
+/*!40103 SET TIME_ZONE='+00:00' */;
+/*!40014 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0 */;
+/*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
+/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
+/*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
+
+%s
+`, data)
+
+					rqMutex.Lock()
+					runningQueries++
+					if c.Verbose > 0 {
+						os.Stdout.WriteString(fmt.Sprintf("/** Sending Query: %d - %d / 50 **/;\n", sq, runningQueries))
+					}
+					if runningQueries > 50 && !locked {
+						locked = true
+						writerGroup.Add(1)
+						os.Stdout.WriteString("Preventing next read block to give room to run queries.\n")
+					}
+					rqMutex.Unlock()
+					queryWorker <- q
+					if c.Verbose > 0 {
+						os.Stdout.WriteString(fmt.Sprintf("/** Send Query: %d **/;\n", sq))
+					}
+					sq++
+
+					ready<-true
+				}
+			}()
+
+			err = mysqldump.ConvertToSQL(pr, w, flusher, ready, c.QuerySize, mysqldump.ConvertOptions{
+				Tables: []string{},
+			})
+			if err != nil {
+				logrus.Fatalf("failed to convert dump file: %s", err.Error())
+			}
+
+			wg.Done()
+			rqMutex.Lock()
+			rqDone = true
+			rqMutex.Unlock()
+		}()
+
+		wg.Wait()
+		// let the istio proxy know we are done
+		http.DefaultClient.Timeout = 1 * time.Second
+		http.DefaultClient.Post("http://127.0.0.1:15020/quitquitquit", "text/plain", bytes.NewBufferString(""))
 	})
-	if err != nil {
-		return fmt.Errorf("failed to convert dump file: %w", err)
-	}
 
-	return nil
+	command.Execute()
 }
 
-func verify(in io.Reader, dumpPath string) (bool, error) {
-	hashPath := dumpPath + ".md5"
-
-	b, err := ioutil.ReadFile(hashPath)
-	if err != nil {
-		return false, fmt.Errorf("read hash file at: %w", err)
-	}
-
-	hash := md5.New()
-
-	_, err = io.Copy(hash, in)
-	if err != nil {
-		return false, err
-	}
-
-	hashStr := hex.EncodeToString(hash.Sum(nil))
-
-	return hashStr == string(b), nil
+type chanWriter struct {
+	buffer []byte
 }
 
-func printInfo(in io.Reader) error {
-	r := marshal.NewReader(in)
+func newChanWriter() *chanWriter {
+	return &chanWriter{make([]byte, 0, 100000000)}
+}
 
-	fh, err := r.ReadFileHeader()
-	if err != nil {
-		return fmt.Errorf("read file header: %w", err)
-	}
+func (w *chanWriter) Flush() []byte {
+	defer func() {
+		w.buffer = make([]byte, 0, 100000000)
+	}()
+	return w.buffer
+}
 
-	fmt.Printf("Dump of database \"%s\" at %s\n", fh.DatabaseName, fh.DumpStart)
-	fmt.Println("Server version", fh.ServerVersion)
-	fmt.Println("Tables:")
+func (w *chanWriter) Write(p []byte) (int, error) {
+	w.buffer = append(w.buffer, p...)
 
-	for {
-		t, err := r.ReadTableHeader()
-		if err != nil {
-			if errors.Is(err, io.EOF) {
-				break
-			}
+	return len(p), nil
+}
 
-			return fmt.Errorf("read table header: %w", err)
-		}
-
-		fmt.Printf("   %s (%s)\n", t.Name, strings.Join(t.Columns, ", "))
-
-		err = r.SkipRows(len(t.Columns))
-		if err != nil {
-			if errors.Is(err, io.EOF) {
-				break
-			}
-
-			return fmt.Errorf("skip data: %w", err)
-		}
-	}
-
+func (w *chanWriter) Close() error {
 	return nil
 }

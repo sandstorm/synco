@@ -3,6 +3,7 @@ package marshal
 import (
 	"encoding/binary"
 	"encoding/json"
+	"fmt"
 	"io"
 )
 
@@ -59,7 +60,9 @@ func (d *Writer) WriteRowData(r RowData) error {
 
 		// Encode the value length as a varint
 		n := binary.PutUvarint(buf, uint64(len(*v)))
-		d.w.Write(buf[:n])
+		fmt.Sprint(n)
+		//d.w.Write(buf[:n])
+		d.w.Write(buf)
 
 		// Write the string value as bytes
 		d.w.Write([]byte(*v))

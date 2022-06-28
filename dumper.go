@@ -4,7 +4,9 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/sirupsen/logrus"
 	"io"
+	"sync"
 	"time"
 
 	binary "github.com/MouseHatGames/go-mysqldump/internal/marshal"
@@ -15,26 +17,41 @@ const version = "1.0.0"
 var comma = []byte{','}
 var commaNewline = []byte{',', '\n', '\t'}
 var quote = []byte{'\''}
+var semicolonNewline = []byte{';', '\n'}
+
+// filteredTables special queries for data dump. not should start with a space
+var filteredTables = map[string]map[string][]string{
+	"iot-api": {
+		"event_log": {
+			" WHERE event = 'geofence-in' AND id < 517837446",
+			" WHERE event = 'geofence-out' AND id < 517837446",
+			" WHERE id >= 517837446",
+		}, // skip data before 01-10-2021 except for geofences
+		"rate_limit_request_log": {}, // skip all data
+	},
+}
 
 // Dumper represents a database.
 type Dumper struct {
-	db  *sql.DB
-	w   io.Writer
-	bin *binary.Writer
+	db        *sql.DB
+	w         io.Writer
+	bin       *binary.Writer
+	chunkSize int
 }
 
 // NewDumper creates a new dumper instance.
-func NewDumper(db *sql.DB, w io.Writer) *Dumper {
+func NewDumper(db *sql.DB, w io.Writer, chunkSize int) *Dumper {
 	return &Dumper{
-		db:  db,
-		w:   w,
-		bin: binary.NewWriter(w),
+		db:        db,
+		w:         w,
+		bin:       binary.NewWriter(w),
+		chunkSize: chunkSize,
 	}
 }
 
 // Dump dumps one or more tables from a database into a writer.
 // If dbName is not empty, a "USE xxx" command will be sent prior to commencing the dump.
-func (d *Dumper) Dump(dbName string, tables ...string) error {
+func (d *Dumper) Dump(dbName string, wg *sync.WaitGroup, tables ...string) error {
 	var err error
 
 	if len(tables) == 0 {
@@ -59,7 +76,7 @@ func (d *Dumper) Dump(dbName string, tables ...string) error {
 
 	// Write sql for each table
 	for _, t := range tables {
-		if err := d.writeTable(t, dbName); err != nil {
+		if err := d.writeTable(t, dbName, wg); err != nil {
 			return err
 		}
 	}
@@ -69,24 +86,24 @@ func (d *Dumper) Dump(dbName string, tables ...string) error {
 
 // DumpAllTables dumps all tables in a database into a writer
 // If dbName is not empty, a "USE xxx" command will be sent prior to commencing the dump.
-func (d *Dumper) DumpAllTables(dbName string) error {
+func (d *Dumper) DumpAllTables(dbName string, wg *sync.WaitGroup) error {
 	if err := d.use(dbName); err != nil {
 		return err
 	}
 
 	// List tables in the database
-	tables, err := d.getTables()
+	tables, err := d.getTables(dbName)
 	if err != nil {
 		return fmt.Errorf("list tables: %w", err)
 	}
 
-	return d.Dump(dbName, tables...)
+	return d.Dump(dbName, wg, tables...)
 }
 
 func (d *Dumper) use(db string) error {
 	if db != "" {
 		// Use the database
-		if _, err := d.db.Exec("USE " + db); err != nil {
+		if _, err := d.db.Exec("USE `" + db + "`"); err != nil {
 			return fmt.Errorf("use database: %w", err)
 		}
 	}
@@ -94,7 +111,7 @@ func (d *Dumper) use(db string) error {
 	return nil
 }
 
-func (d *Dumper) getTables() ([]string, error) {
+func (d *Dumper) getTables(dbName string) ([]string, error) {
 	tables := make([]string, 0)
 
 	// Get table list
@@ -123,7 +140,7 @@ func getServerVersion(db *sql.DB) (string, error) {
 	return server_version.String, nil
 }
 
-func (d *Dumper) writeTable(name string, schema string) error {
+func (d *Dumper) writeTable(name string, schema string, wg *sync.WaitGroup) error {
 	var err error
 
 	sql, err := getTableSQL(d.db, name)
@@ -142,7 +159,8 @@ func (d *Dumper) writeTable(name string, schema string) error {
 		Columns:   cols,
 	})
 
-	if err = d.writeTableValues(name); err != nil {
+	logrus.Infof("Read table information for %s", name)
+	if err = d.writeTableValues(name, schema, wg); err != nil {
 		return fmt.Errorf("write table rows: %w", err)
 	}
 
@@ -184,26 +202,60 @@ func getTableColumns(db *sql.DB, table string, schema string) (cols []string, er
 	return
 }
 
-func (d *Dumper) writeTableValues(name string) error {
-	// Get Data
-	rows, err := d.db.Query("SELECT * FROM " + name)
-	if err != nil {
-		return err
+func (d *Dumper) writeTableValues(name string, schema string, wg *sync.WaitGroup) error {
+	var queries = []string{""}
+	if fs, ok := filteredTables[schema]; ok {
+		if q, ok := fs[name]; ok {
+			queries = q
+		}
 	}
-	defer rows.Close()
+	for _, filter := range queries {
+		offset := 0
 
-	// Get columns
-	columns, err := rows.Columns()
-	if err != nil {
-		return err
-	}
-	if len(columns) == 0 {
-		return errors.New("no columns in table " + name + ".")
-	}
+		for {
+			gotData := false
+			wg.Wait()
+			// Get Data
+			logrus.Infof("Reading row data for table %s, offset = %d", name, offset)
+			var rows *sql.Rows
+			var err error
+			if d.chunkSize > 0 {
+				logrus.Debugf("SELECT * FROM "+name+filter+" LIMIT ? OFFSET ?", d.chunkSize, offset)
+				rows, err = d.db.Query("SELECT * FROM "+name+filter+" LIMIT ? OFFSET ?", d.chunkSize, offset)
+			} else {
+				logrus.Debugf("SELECT * FROM " + name + filter)
+				rows, err = d.db.Query("SELECT * FROM " + name + filter)
+			}
+			if err != nil {
+				return err
+			}
 
-	for rows.Next() {
-		if err = d.writeValues(rows, columns); err != nil {
-			return fmt.Errorf("write values: %w", err)
+			// Get columns
+			columns, err := rows.Columns()
+			if err != nil {
+				rows.Close()
+				return err
+			}
+			if len(columns) == 0 {
+				rows.Close()
+				return errors.New("no columns in table " + name + ".")
+			}
+
+			for rows.Next() {
+				gotData = true
+				if err = d.writeValues(rows, columns); err != nil {
+					rows.Close()
+					return fmt.Errorf("write values: %w", err)
+				}
+			}
+
+			rows.Close()
+
+			if !gotData || d.chunkSize <= 0 {
+				break
+			}
+			offset += d.chunkSize
+			logrus.Infof("Wrote row for table %s, next offset = %d", name, offset)
 		}
 	}
 

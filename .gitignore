@@ -1,3 +1,2 @@
-vendor/*
-__debug_bin
-.vscode
+vendor/
+.idea/

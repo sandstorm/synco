@@ -16,7 +16,7 @@ type ConvertOptions struct {
 	Tables []string
 }
 
-func ConvertToSQL(in io.Reader, w io.Writer, opts ...ConvertOptions) error {
+func ConvertToSQL(in io.Reader, w io.Writer, flusher chan<- bool, ready <-chan bool, querySize int, opts ...ConvertOptions) error {
 	var opt ConvertOptions
 
 	if len(opts) > 0 {
@@ -50,9 +50,14 @@ USE %[3]s;
 /*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
 /*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
  
-`, version, h.ServerVersion, h.DatabaseName)
-
+`, version, h.ServerVersion, "`" + h.DatabaseName + "`")
+	flusher <- false
+	<- ready
+	done := false
 	for {
+		if done {
+			break
+		}
 		t, err := r.ReadTableHeader()
 		if err != nil {
 			if errors.Is(err, io.EOF) {
@@ -90,71 +95,104 @@ DROP TABLE IF EXISTS %[1]s;
 --
 -- Dumping data for table %s
 --
-LOCK TABLES %[1]s WRITE;
+-- LOCK TABLES %[1]s WRITE;
 /*!40000 ALTER TABLE %[1]s DISABLE KEYS */;
 
 `, t.Name)
+		flusher <- false
+		<- ready
 
 		rows, errs := r.ReadRows(len(t.Columns))
 
-		if r, ok := <-rows; ok {
-			fmt.Fprintf(w, "INSERT INTO %s(`%s`) VALUES ", t.Name, strings.Join(t.Columns, "`,`"))
-			writeRow(w, r)
-		}
-
+		rowBytesWritten := 0
 	loop:
 		for {
-			select {
-			case r, ok := <-rows:
-				if !ok {
-					break loop
-				}
-				w.Write(commaNewline)
-				writeRow(w, r)
+			rowBytesWritten = 0
+			if r, ok := <-rows; ok {
+				fmt.Fprintf(w, "REPLACE INTO %s(`%s`) VALUES ", t.Name, strings.Join(t.Columns, "`,`"))
+				rowBytesWritten += writeRow(w, r)
+			}
 
-			case err, ok := <-errs:
-				if ok && !errors.Is(err, io.EOF) {
-					return err
+			for {
+				select {
+				case r, ok := <-rows:
+					if !ok {
+						break loop
+					}
+					w.Write(commaNewline)
+					rowBytesWritten += writeRow(w, r)
+
+					if rowBytesWritten > querySize {
+						w.Write(semicolonNewline)
+						flusher <- true
+						<- ready
+
+						continue loop
+					}
+
+				case err, ok := <-errs:
+					if ok && !errors.Is(err, io.EOF) {
+						return err
+					}
+					if errors.Is(err, io.EOF) {
+						done = true
+					} else if ok {
+						break loop
+					}
 				}
-				break loop
 			}
 		}
 
-		fmt.Fprintf(w, `;
-
+		if rowBytesWritten > 0 {
+			w.Write(semicolonNewline)
+			flusher <- true
+			<- ready
+		}
+		fmt.Fprintf(w, `
 /*!40000 ALTER TABLE %s ENABLE KEYS */;
-UNLOCK TABLES;
+-- UNLOCK TABLES;
 
 -- Finished table data dump
 
 `, t.Name)
+		flusher <- false
+		<- ready
+
 	}
 
 	return nil
 }
 
-func writeRow(w io.Writer, r marshal.RowData) {
+func writeRow(w io.Writer, r marshal.RowData) (l int) {
 	w.Write([]byte{'('})
+	l = 1
 
 	for i, v := range r {
 		if v != nil {
 			w.Write(quote)
-			writeEscapedString(w, *v)
+			l += 2
+			l += writeEscapedString(w, *v)
 			w.Write(quote)
+			l += 2
 		} else {
 			fmt.Fprint(w, "null")
+			l += 4
 		}
 
 		if i < len(r)-1 {
 			w.Write(comma)
+			l += 1
 		}
 	}
 
 	w.Write([]byte{')'})
+	l += 1
+	return
 }
 
 // Taken from https://gist.github.com/siddontang/8875771
-func writeEscapedString(w io.Writer, str string) {
+func writeEscapedString(w io.Writer, str string) (l int) {
+	l = 0
 	b := make([]byte, 2)
 
 	var escape byte
@@ -183,10 +221,13 @@ func writeEscapedString(w io.Writer, str string) {
 		if escape != 0 {
 			b[0] = '\\'
 			b[1] = escape
-			w.Write(b)
+			n, _ := w.Write(b)
+			l += n
 		} else {
 			b[0] = c
-			w.Write(b[0:1])
+			n, _ := w.Write(b[0:1])
+			l += n
 		}
 	}
+	return
 }
