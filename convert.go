@@ -13,7 +13,8 @@ import (
 
 type ConvertOptions struct {
 	// If nil, all tables will be converted. If a table is specified here but is not present on the dump, no error will be returned
-	Tables []string
+	Tables     []string
+	SkipCreate bool
 }
 
 func ConvertToSQL(in io.Reader, w io.Writer, flusher chan<- bool, ready <-chan bool, querySize int, opts ...ConvertOptions) error {
@@ -31,15 +32,17 @@ func ConvertToSQL(in io.Reader, w io.Writer, flusher chan<- bool, ready <-chan b
 		return fmt.Errorf("read file header: %w", err)
 	}
 
-	fmt.Fprintf(w, `-- Go SQL Dump %s
+	fmt.Fprintf(w, `-- Go SQL Dump %[1]s
 --
 -- ------------------------------------------------------
--- Server version	%s
+-- Server version	%[2]s
+`, version, h.ServerVersion, "`"+h.DatabaseName+"`")
 
-CREATE DATABASE IF NOT EXISTS %s;
-USE %[3]s;
-
-/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
+	if !opt.SkipCreate {
+		fmt.Fprintf(w, `CREATE DATABASE IF NOT EXISTS %[3]s;
+USE %[3]s;`, version, h.ServerVersion, "`"+h.DatabaseName+"`")
+	}
+	fmt.Fprintf(w, `/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
 /*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
 /*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
 /*!40101 SET NAMES utf8 */;
@@ -50,9 +53,9 @@ USE %[3]s;
 /*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
 /*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
  
-`, version, h.ServerVersion, "`" + h.DatabaseName + "`")
+`)
 	flusher <- false
-	<- ready
+	<-ready
 	done := false
 	for {
 		if done {
@@ -77,7 +80,8 @@ USE %[3]s;
 			continue
 		}
 
-		fmt.Fprintf(w, `--
+		if !opt.SkipCreate {
+			fmt.Fprintf(w, `--
 -- Table structure for table %[1]s
 --
 
@@ -87,28 +91,35 @@ DROP TABLE IF EXISTS %[1]s;
 
 `, t.Name)
 
-		w.Write([]byte(t.CreateSQL))
+			w.Write([]byte(t.CreateSQL))
 
-		fmt.Fprintf(w, `;
+			fmt.Fprint(w, `;
 
-/*!40101 SET character_set_client = @saved_cs_client */;
---
+/*!40101 SET character_set_client = @saved_cs_client */;`)
+		}
+		fmt.Fprintf(w, `--
 -- Dumping data for table %s
 --
--- LOCK TABLES %[1]s WRITE;
-/*!40000 ALTER TABLE %[1]s DISABLE KEYS */;
+
 
 `, t.Name)
 		flusher <- false
-		<- ready
+		<-ready
 
 		rows, errs := r.ReadRows(len(t.Columns))
 
+		truncated := false
 		rowBytesWritten := 0
 	loop:
 		for {
 			rowBytesWritten = 0
 			if r, ok := <-rows; ok {
+				if !truncated {
+					fmt.Fprintf(w, `
+						/*!40000 ALTER TABLE %[1]s DISABLE KEYS */;
+						TRUNCATE %[1]s;`, t.Name)
+					truncated = true
+				}
 				fmt.Fprintf(w, "REPLACE INTO %s(`%s`) VALUES ", t.Name, strings.Join(t.Columns, "`,`"))
 				rowBytesWritten += writeRow(w, r)
 			}
@@ -125,7 +136,7 @@ DROP TABLE IF EXISTS %[1]s;
 					if rowBytesWritten > querySize {
 						w.Write(semicolonNewline)
 						flusher <- true
-						<- ready
+						<-ready
 
 						continue loop
 					}
@@ -146,17 +157,15 @@ DROP TABLE IF EXISTS %[1]s;
 		if rowBytesWritten > 0 {
 			w.Write(semicolonNewline)
 			flusher <- true
-			<- ready
+			<-ready
 		}
-		fmt.Fprintf(w, `
-/*!40000 ALTER TABLE %s ENABLE KEYS */;
--- UNLOCK TABLES;
-
--- Finished table data dump
-
-`, t.Name)
+		if truncated {
+			fmt.Fprintf(w, `
+/*!40000 ALTER TABLE %s ENABLE KEYS */;`, t.Name)
+		}
+		fmt.Fprint(w, `-- Finished table data dump`)
 		flusher <- false
-		<- ready
+		<-ready
 
 	}
 

@@ -3,9 +3,7 @@ module github.com/MouseHatGames/go-mysqldump
 go 1.15
 
 require (
-	bitbucket.org/nfnty_admin/std_pkg v1.8.23
-	github.com/davecgh/go-spew v1.1.1
-	github.com/sirupsen/logrus v1.4.0
+	github.com/conneqtech/std_pkg v1.14.0
+	github.com/lib/pq v1.1.1
+	github.com/sirupsen/logrus v1.8.1
 )
-
-replace bitbucket.org/nfnty_admin/std_pkg => ../std_pkg

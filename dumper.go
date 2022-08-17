@@ -4,8 +4,10 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/conneqtech/std_pkg/common"
 	"github.com/sirupsen/logrus"
 	"io"
+	"reflect"
 	"sync"
 	"time"
 
@@ -28,6 +30,9 @@ var filteredTables = map[string]map[string][]string{
 			" WHERE id >= 517837446",
 		}, // skip data before 01-10-2021 except for geofences
 		"rate_limit_request_log": {}, // skip all data
+	},
+	"paztir_prod": {
+		"migration_versions": {},
 	},
 }
 
@@ -100,7 +105,15 @@ func (d *Dumper) DumpAllTables(dbName string, wg *sync.WaitGroup) error {
 	return d.Dump(dbName, wg, tables...)
 }
 
+func (d *Dumper) isPQ() bool {
+	return reflect.ValueOf(d.db.Driver()).Type().String() == "*pq.Driver"
+}
+
 func (d *Dumper) use(db string) error {
+	if d.isPQ() {
+		return nil
+	}
+
 	if db != "" {
 		// Use the database
 		if _, err := d.db.Exec("USE `" + db + "`"); err != nil {
@@ -115,7 +128,11 @@ func (d *Dumper) getTables(dbName string) ([]string, error) {
 	tables := make([]string, 0)
 
 	// Get table list
-	rows, err := d.db.Query("SHOW TABLES")
+	q := "SHOW TABLES"
+	if d.isPQ() {
+		q = "SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE';"
+	}
+	rows, err := d.db.Query(q)
 	if err != nil {
 		return tables, err
 	}
@@ -143,12 +160,12 @@ func getServerVersion(db *sql.DB) (string, error) {
 func (d *Dumper) writeTable(name string, schema string, wg *sync.WaitGroup) error {
 	var err error
 
-	sql, err := getTableSQL(d.db, name)
+	sql, err := d.getTableSQL(d.db, name)
 	if err != nil {
 		return fmt.Errorf("get table SQL: %w", err)
 	}
 
-	cols, err := getTableColumns(d.db, name, schema)
+	cols, err := d.getTableColumns(d.db, name, schema)
 	if err != nil {
 		return fmt.Errorf("get table columns: %w", err)
 	}
@@ -167,7 +184,10 @@ func (d *Dumper) writeTable(name string, schema string, wg *sync.WaitGroup) erro
 	return nil
 }
 
-func getTableSQL(db *sql.DB, name string) (string, error) {
+func (d *Dumper) getTableSQL(db *sql.DB, name string) (string, error) {
+	if d.isPQ() {
+		return "-- DUMMY", nil
+	}
 	// Get table creation SQL
 	var table_return sql.NullString
 	var table_sql sql.NullString
@@ -183,8 +203,14 @@ func getTableSQL(db *sql.DB, name string) (string, error) {
 	return table_sql.String, nil
 }
 
-func getTableColumns(db *sql.DB, table string, schema string) (cols []string, err error) {
-	rows, err := db.Query("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = ? AND TABLE_SCHEMA = ?", table, schema)
+func (d *Dumper) getTableColumns(db *sql.DB, table string, schema string) (cols []string, err error) {
+	sq := "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = ? AND TABLE_SCHEMA = ?"
+	args := []interface{}{table, schema}
+	if d.isPQ() {
+		sq = "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = $1 AND TABLE_SCHEMA = 'public'"
+		args = []interface{}{table}
+	}
+	rows, err := db.Query(sq, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -220,8 +246,12 @@ func (d *Dumper) writeTableValues(name string, schema string, wg *sync.WaitGroup
 			var rows *sql.Rows
 			var err error
 			if d.chunkSize > 0 {
-				logrus.Debugf("SELECT * FROM "+name+filter+" LIMIT ? OFFSET ?", d.chunkSize, offset)
-				rows, err = d.db.Query("SELECT * FROM "+name+filter+" LIMIT ? OFFSET ?", d.chunkSize, offset)
+				q := "SELECT * FROM " + name + filter + " LIMIT ? OFFSET ?"
+				if d.isPQ() {
+					q = "SELECT * FROM " + name + filter + " LIMIT $1 OFFSET $2"
+				}
+				logrus.Debugf(q, d.chunkSize, offset)
+				rows, err = d.db.Query(q, d.chunkSize, offset)
 			} else {
 				logrus.Debugf("SELECT * FROM " + name + filter)
 				rows, err = d.db.Query("SELECT * FROM " + name + filter)
@@ -272,6 +302,33 @@ func (d *Dumper) writeValues(rows *sql.Rows, columns []string) error {
 	// Read data
 	if err := rows.Scan(ptrs...); err != nil {
 		return err
+	}
+	if d.isPQ() {
+		// typecheck for bool
+		tdata := make([]*interface{}, len(columns))
+		tptrs := make([]interface{}, len(columns))
+		for i := range tdata {
+			tptrs[i] = &tdata[i]
+		}
+		// Read data
+		if err := rows.Scan(tptrs...); err != nil {
+			return err
+		}
+
+		for i, dd := range tdata {
+			if dd == nil {
+				continue
+			}
+			a := *dd
+			switch a.(type) {
+			case bool:
+				if a.(bool) {
+					data[i] = common.StringPtr("1")
+				} else {
+					data[i] = common.StringPtr("0")
+				}
+			}
+		}
 	}
 
 	return d.bin.WriteRowData(data)

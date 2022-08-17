@@ -1,11 +1,13 @@
 package main
 
 import (
-	"bitbucket.org/nfnty_admin/std_pkg/cli"
-	"bitbucket.org/nfnty_admin/std_pkg/db/mysql"
 	"bytes"
+	"database/sql"
 	"fmt"
 	"github.com/MouseHatGames/go-mysqldump"
+	"github.com/conneqtech/std_pkg/cli"
+	"github.com/conneqtech/std_pkg/db/mysql"
+	_ "github.com/lib/pq"
 	"github.com/sirupsen/logrus"
 	"io"
 	"net/http"
@@ -15,16 +17,18 @@ import (
 )
 
 type Configuration struct {
-	SourceMysql mysql.Opts `command:"source_mysql"`
+	Type        string     `command:"type,usage=Use mysql of pg,default=mysql"`
+	SourcePG    mysql.Opts `command:"source_pg,required=false"`
+	SourceMysql mysql.Opts `command:"source_mysql,required=false"`
 	TargetMysql mysql.Opts `command:"target_mysql"`
 
 	// source options
-	ChunkSize   int        `command:"chunk_size,default=0"`
+	ChunkSize int `command:"chunk_size,default=0"`
 
 	// target options
-	QuerySize   int        `command:"query_size,default=1000000"`
-	Verbose     int        `command:"verbose,default=0"`
-	WorkerCount int        `command:"worker_count,default=10"` // unused for now
+	QuerySize   int `command:"query_size,default=1000000"`
+	Verbose     int `command:"verbose,default=0"`
+	WorkerCount int `command:"worker_count,default=10"` // unused for now
 }
 
 var c *Configuration
@@ -43,15 +47,25 @@ func main() {
 
 		pr, pw := io.Pipe()
 
-
 		wg.Add(1)
 		go func() {
-			db, err := mysql.NewMysqlClient(&c.SourceMysql)
+			var db *sql.DB
+			var err error
+			var dbName string
+			if c.Type == "mysql" {
+				db, err = mysql.NewMysqlClient(&c.SourceMysql)
+				dbName = c.SourceMysql.Database
+			} else if c.Type == "pg" {
+				db, err = sql.Open("postgres", fmt.Sprintf("postgres://%s:%s@%s/%s?sslmode=disable", c.SourcePG.Username, c.SourcePG.Password, c.SourcePG.Host, c.SourcePG.Database))
+				dbName = c.SourcePG.Database
+			} else {
+				err = fmt.Errorf("invalid type given: %s", c.Type)
+			}
 			if err != nil {
 				logrus.Fatal(err)
 			}
 			dumper := mysqldump.NewDumper(db, pw, c.ChunkSize)
-			err = dumper.DumpAllTables(c.SourceMysql.Database, &writerGroup)
+			err = dumper.DumpAllTables(dbName, &writerGroup)
 			if err != nil {
 				logrus.Fatal(err)
 			}
@@ -77,6 +91,9 @@ func main() {
 				}
 				rq++
 				_, err := db.Exec(q)
+				if c.Verbose > 0 {
+					os.Stdout.WriteString(q)
+				}
 				if err != nil {
 					logrus.Fatal(err)
 				}
@@ -141,12 +158,13 @@ func main() {
 					}
 					sq++
 
-					ready<-true
+					ready <- true
 				}
 			}()
 
 			err = mysqldump.ConvertToSQL(pr, w, flusher, ready, c.QuerySize, mysqldump.ConvertOptions{
-				Tables: []string{},
+				Tables:     []string{},
+				SkipCreate: c.Type == "pg",
 			})
 			if err != nil {
 				logrus.Fatalf("failed to convert dump file: %s", err.Error())
