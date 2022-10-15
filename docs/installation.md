@@ -11,7 +11,7 @@
 ### Windows Command
 
 ```powershell
-iwr instl.sh/pterm/cli-template/windows | iex
+iwr instl.sh/sandstorm/synco/windows | iex
 ```
 
 #### ** Linux **
@@ -19,7 +19,7 @@ iwr instl.sh/pterm/cli-template/windows | iex
 ### Linux Command
 
 ```bash
-curl -sSL instl.sh/pterm/cli-template/linux | bash
+curl -sSL instl.sh/sandstorm/synco/linux | bash
 ```
 
 #### ** macOS **
@@ -27,7 +27,7 @@ curl -sSL instl.sh/pterm/cli-template/linux | bash
 ### macOS Command
 
 ```bash
-curl -sSL instl.sh/pterm/cli-template/macos | bash
+curl -sSL instl.sh/sandstorm/synco/macos | bash
 ```
 
 #### ** Compile from source **
@@ -41,7 +41,7 @@ Compiling cli-template from source has the benefit that the build command is the
 It is not recommended to install Go only for the installation of cli-template.
 
 ```command
-go install github.com/pterm/cli-template@latest
+go install github.com/sandstorm/synco@latest
 ```
 
 <!-- tabs:end -->

@@ -10,7 +10,7 @@ import (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "cli-template",
+	Use:   "synco",
 	Short: "This cli template shows the date and time in the terminal",
 	Long: `This is a template CLI application, which can be used as a boilerplate for awesome CLI tools written in Go.
 This template prints the date or time to the terminal.`,
@@ -57,7 +57,7 @@ func init() {
 	rootCmd.PersistentFlags().BoolVarP(&pcli.DisableUpdateChecking, "disable-update-checks", "", false, "disables update checks")
 
 	// Use https://github.com/pterm/pcli to style the output of cobra.
-	pcli.SetRepo("pterm/cli-template")
+	pcli.SetRepo("sandstorm/synco")
 	pcli.SetRootCmd(rootCmd)
 	pcli.Setup()
 

@@ -7,4 +7,4 @@ This template prints the date or time to the terminal.
 
 [Installation](installation.md)
 [Docs](docs.md)
-[GitHub](https://github.com/pterm/cli-template)
+[GitHub](https://github.com/sandstorm/synco)
