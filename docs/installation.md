@@ -1,7 +1,7 @@
-# Quick Start - Install cli-template
+# Quick Start - Install synco
 
 > [!TIP]
-> cli-template is installable via [instl.sh](https://instl.sh).\
+> synco is installable via [instl.sh](https://instl.sh).\
 > You just have to run the following command and you're ready to go!
 
 <!-- tabs:start -->
@@ -35,10 +35,10 @@ curl -sSL instl.sh/sandstorm/synco/macos | bash
 ### Compile from source with Golang
 
 ?> **NOTICE**
-To compile cli-template from source, you have to have [Go](https://golang.org/) installed.
+To compile synco from source, you have to have [Go](https://golang.org/) installed.
 
-Compiling cli-template from source has the benefit that the build command is the same on every platform.\
-It is not recommended to install Go only for the installation of cli-template.
+Compiling synco from source has the benefit that the build command is the same on every platform.\
+It is not recommended to install Go only for the installation of synco.
 
 ```command
 go install github.com/sandstorm/synco@latest
