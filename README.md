@@ -1,4 +1,4 @@
-<h1 align="center">cli-template</h1>
+<h1 align="center">synco</h1>
 <p align="center">This cli template shows the date and time in the terminal</p>
 
 <p align="center">
