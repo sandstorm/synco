@@ -2,6 +2,7 @@ package source
 
 import (
 	"github.com/pterm/pterm"
+	"github.com/sandstorm/synco/pkg/framework_detection"
 	"github.com/spf13/cobra"
 )
 
@@ -17,6 +18,9 @@ var SourceCmd = &cobra.Command{
 			return err
 		}
 		pterm.DefaultBasicText.Println("Detecting Frameworks")
+
+		frameworkDetector := framework_detection.NewFrameworkDetector()
+		frameworkDetector.Run()
 
 		pterm.DefaultBasicText.Println("Hallo")
 
