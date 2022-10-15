@@ -6,7 +6,9 @@ before:
 gomod:
   proxy: true
 builds:
-  - env:
+  - id: "synco"
+    main: ./main.go
+    env:
       - CGO_ENABLED=0
     goos:
       - linux
@@ -22,6 +24,26 @@ builds:
       - -trimpath
     ldflags:
       - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{ .CommitDate }} -X main.builtBy=pterm
+  - id: "synco-source"
+    main: ./main-source.go
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - 386
+      - amd64
+      - arm
+      - arm64
+    mod_timestamp: '{{ .CommitTimestamp }}'
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{ .CommitDate }} -X main.builtBy=pterm
+
+
 checksum:
   name_template: '{{ .ProjectName }}_checksums.txt'
 changelog:

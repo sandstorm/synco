@@ -1,20 +1,24 @@
 package cmd
 
 import (
+	"github.com/spf13/cobra"
 	"os"
 	"os/signal"
+)
 
+// !! NOTE: we are not allowed to move this file, as this is needed by the build system at https://github.com/pterm/tag-action/blob/main/entrypoint.sh
+
+import (
 	"github.com/pterm/pcli"
 	"github.com/pterm/pterm"
-	"github.com/spf13/cobra"
 )
 
 var rootCmd = &cobra.Command{
 	Use:   "synco",
-	Short: "This cli template shows the date and time in the terminal",
+	Short: "an Database and File Dump Downloader for synchronizing production, staging, and local development",
 	Long: `This is a template CLI application, which can be used as a boilerplate for awesome CLI tools written in Go.
 This template prints the date or time to the terminal.`,
-	Example: `cli-template date
+	Example: `synco  date
 cli-template date --format 20060102
 cli-template time
 cli-template time --live`,
