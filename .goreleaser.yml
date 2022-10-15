@@ -24,8 +24,8 @@ builds:
       - -trimpath
     ldflags:
       - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{ .CommitDate }} -X main.builtBy=pterm
-  - id: "synco-source"
-    main: ./main-source.go
+  - id: "synco-lite"
+    main: ./main-lite.go
     env:
       - CGO_ENABLED=0
     goos:

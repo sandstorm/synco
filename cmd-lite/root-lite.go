@@ -15,15 +15,14 @@ import (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "synco",
-	Short: "an Database and File Dump Downloader for synchronizing production, staging, and local development",
+	Use:   "synco-lite",
+	Short: "(LITE VERSION) an Database and File Dump Downloader for synchronizing production, staging, and local development",
 	Long: `This is a template CLI application, which can be used as a boilerplate for awesome CLI tools written in Go.
 This template prints the date or time to the terminal.`,
 	Example: `synco  date
 cli-template date --format 20060102
 cli-template time
 cli-template time --live`,
-	Version: "v0.0.2", // <---VERSION---> Updating this version, will also create a new GitHub release.
 	// Uncomment the following lines if your bare application has an action associated with it:
 	// RunE: func(cmd *cobra.Command, args []string) error {
 	// 	// Your code here
@@ -60,7 +59,7 @@ func init() {
 	// Fill the empty strings with the shorthand variant (if you like to have one).
 	rootCmd.PersistentFlags().BoolVarP(&pterm.PrintDebugMessages, "debug", "", false, "enable debug messages")
 	rootCmd.PersistentFlags().BoolVarP(&pterm.RawOutput, "raw", "", false, "print unstyled raw output (set it if output is written to a file)")
-	rootCmd.PersistentFlags().BoolVarP(&pcli.DisableUpdateChecking, "disable-update-checks", "", false, "disables update checks")
+	rootCmd.PersistentFlags().BoolVarP(&pcli.DisableUpdateChecking, "disable-update-checks", "", true, "disables update checks")
 
 	// Use https://github.com/pterm/pcli to style the output of cobra.
 	pcli.SetRepo("sandstorm/synco")

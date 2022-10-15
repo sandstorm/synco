@@ -1,8 +1,8 @@
-all: synco synco-source
+all: synco synco-lite
 synco:
 	mkdir -p build
 	go build -o build/synco ./main.go
-synco-source:
+synco-lite:
 	mkdir -p build
-	go build -o build/synco-source ./main-source.go
+	go build -o build/synco-lite ./main-lite.go
 
