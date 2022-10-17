@@ -35,7 +35,7 @@ cli-template time --live`,
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
-	rootCmd.AddCommand(source.SourceCmd)
+	rootCmd.AddCommand(source.ServeCmd)
 	// Fetch user interrupt
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt)
