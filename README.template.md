@@ -95,6 +95,9 @@ In our agency, we use lots of different technologies and infrastructures. Thus, 
     * Wizard: https://github.com/pterm/pterm
     * Basic CLI API: https://cobra.dev/
 * Hot Reload: https://github.com/cosmtrek/air
+* Database:
+  * https://github.com/JamesStewy/go-mysqldump
+  * fork with postgres support: https://github.com/conneqtech/go-mysqldump (adapted to own needs)
 
 ## Solution Concept
 

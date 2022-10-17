@@ -8,7 +8,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/MouseHatGames/go-mysqldump/internal/marshal"
+	"github.com/sandstorm/synco/pkg/util/mysql/go_mysqldump/internal/marshal"
 )
 
 type ConvertOptions struct {

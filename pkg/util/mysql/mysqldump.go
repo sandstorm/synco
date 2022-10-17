@@ -4,8 +4,10 @@ import (
 	"database/sql"
 	"fmt"
 	"github.com/go-sql-driver/mysql"
-	"github.com/jamf/go-mysqldump"
 	"github.com/sandstorm/synco/pkg/frameworks"
+	mysqldump "github.com/sandstorm/synco/pkg/util/mysql/go_mysqldump"
+	"os"
+	"sync"
 )
 
 func CreateDump(dbCredentials *frameworks.DbCredentials, folderName string, filenamePrefix string) (resultFile string, err error) {
@@ -23,19 +25,22 @@ func CreateDump(dbCredentials *frameworks.DbCredentials, folderName string, file
 	}
 
 	// Register database with mysqldump
-	dumper, err := mysqldump.Register(db, folderName, filenamePrefix)
+
+	f, err := os.Create("/tmp/dat2")
+
+	dumper := mysqldump.NewDumper(db, f, 1024)
 	if err != nil {
 		return "", fmt.Errorf("error registering database: %w", err)
 	}
 
 	// Dump database to file
-	err = dumper.Dump()
+	var wg sync.WaitGroup
+	err = dumper.DumpAllTables(dbCredentials.DbName, &wg)
 	if err != nil {
 		return "", fmt.Errorf("error dumping: %w", err)
 	}
 
 	// Close dumper, connected database and file stream.
-	err = dumper.Close()
 	if err != nil {
 		return "", fmt.Errorf("error closing dumper: %w", err)
 	}

@@ -4,14 +4,12 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/conneqtech/std_pkg/common"
-	"github.com/sirupsen/logrus"
 	"io"
 	"reflect"
 	"sync"
 	"time"
 
-	binary "github.com/MouseHatGames/go-mysqldump/internal/marshal"
+	binary "github.com/sandstorm/synco/pkg/util/mysql/go_mysqldump/internal/marshal"
 )
 
 const version = "1.0.0"
@@ -176,7 +174,7 @@ func (d *Dumper) writeTable(name string, schema string, wg *sync.WaitGroup) erro
 		Columns:   cols,
 	})
 
-	logrus.Infof("Read table information for %s", name)
+	fmt.Printf("Read table information for %s", name)
 	if err = d.writeTableValues(name, schema, wg); err != nil {
 		return fmt.Errorf("write table rows: %w", err)
 	}
@@ -242,7 +240,7 @@ func (d *Dumper) writeTableValues(name string, schema string, wg *sync.WaitGroup
 			gotData := false
 			wg.Wait()
 			// Get Data
-			logrus.Infof("Reading row data for table %s, offset = %d", name, offset)
+			fmt.Printf("Reading row data for table %s, offset = %d", name, offset)
 			var rows *sql.Rows
 			var err error
 			if d.chunkSize > 0 {
@@ -250,10 +248,10 @@ func (d *Dumper) writeTableValues(name string, schema string, wg *sync.WaitGroup
 				if d.isPQ() {
 					q = "SELECT * FROM " + name + filter + " LIMIT $1 OFFSET $2"
 				}
-				logrus.Debugf(q, d.chunkSize, offset)
+				fmt.Printf(q, d.chunkSize, offset)
 				rows, err = d.db.Query(q, d.chunkSize, offset)
 			} else {
-				logrus.Debugf("SELECT * FROM " + name + filter)
+				fmt.Printf("SELECT * FROM " + name + filter)
 				rows, err = d.db.Query("SELECT * FROM " + name + filter)
 			}
 			if err != nil {
@@ -285,12 +283,15 @@ func (d *Dumper) writeTableValues(name string, schema string, wg *sync.WaitGroup
 				break
 			}
 			offset += d.chunkSize
-			logrus.Infof("Wrote row for table %s, next offset = %d", name, offset)
+			fmt.Printf("Wrote row for table %s, next offset = %d", name, offset)
 		}
 	}
 
 	return nil
 }
+
+var trueStr = "1"
+var falseStr = "0"
 
 func (d *Dumper) writeValues(rows *sql.Rows, columns []string) error {
 	data := make([]*string, len(columns))
@@ -323,9 +324,9 @@ func (d *Dumper) writeValues(rows *sql.Rows, columns []string) error {
 			switch a.(type) {
 			case bool:
 				if a.(bool) {
-					data[i] = common.StringPtr("1")
+					data[i] = &trueStr
 				} else {
-					data[i] = common.StringPtr("0")
+					data[i] = &falseStr
 				}
 			}
 		}
