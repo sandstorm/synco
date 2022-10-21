@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"github.com/sandstorm/synco/cmd/receive"
 	"github.com/sandstorm/synco/cmd/source"
 	"github.com/spf13/cobra"
 	"os"
@@ -25,7 +26,7 @@ cli-template time
 cli-template time --live`,
 	Version: "v0.0.3", // <---VERSION---> Updating this version, will also create a new GitHub release.
 	// Uncomment the following lines if your bare application has an action associated with it:
-	// RunE: func(cmd *cobra.Command, args []string) error {
+	// RunE: func(cmd *cobra.CommandDeclaration, args []string) error {
 	// 	// Your code here
 	//
 	// 	return nil
@@ -36,6 +37,8 @@ cli-template time --live`,
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
 	rootCmd.AddCommand(source.ServeCmd)
+	rootCmd.AddCommand(receive.CommandDeclaration)
+
 	// Fetch user interrupt
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt)

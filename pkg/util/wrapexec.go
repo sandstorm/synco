@@ -7,8 +7,24 @@ import (
 	"strings"
 )
 
+var mocks map[string]string = make(map[string]string)
+
+func ResetCommandMocks() {
+	mocks = make(map[string]string)
+}
+
+func RegisterCommandMock(commandString string, output string) {
+	mocks[commandString] = output
+}
+
 func RunWrappedCommand(cmd *exec.Cmd) (output string, err error) {
-	pterm.Debug.Printfln("Executing command: %s", strings.Join(cmd.Args, " "))
+	commandString := strings.Join(cmd.Args, " ")
+	if output, ok := mocks[commandString]; ok {
+		pterm.Debug.Printfln("Mocking command: %s", commandString)
+		return output, nil
+	}
+
+	pterm.Debug.Printfln("Executing command: %s", commandString)
 
 	// Get a pipe to read from standard out
 	r, _ := cmd.StdoutPipe()

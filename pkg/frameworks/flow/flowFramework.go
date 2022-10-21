@@ -2,7 +2,8 @@ package flow
 
 import (
 	"github.com/pterm/pterm"
-	"github.com/sandstorm/synco/pkg/frameworks"
+	"github.com/sandstorm/synco/pkg/frameworks/types"
+	"github.com/sandstorm/synco/pkg/serve"
 	"github.com/sandstorm/synco/pkg/util"
 	"github.com/sandstorm/synco/pkg/util/mysql"
 	"gopkg.in/yaml.v3"
@@ -42,12 +43,12 @@ type flowPersistenceBackendOptions struct {
 	Port     int    `yaml:"port"`
 }
 
-func (fp *flowPersistenceBackendOptions) ToDbCredentials() *frameworks.DbCredentials {
+func (fp *flowPersistenceBackendOptions) ToDbCredentials() *types.DbCredentials {
 	port := 3306
 	if fp.Port != 0 {
 		port = fp.Port
 	}
-	return &frameworks.DbCredentials{
+	return &types.DbCredentials{
 		Host:     fp.Host,
 		Port:     port,
 		User:     fp.User,
@@ -56,12 +57,17 @@ func (fp *flowPersistenceBackendOptions) ToDbCredentials() *frameworks.DbCredent
 	}
 }
 
-func (f flowFramework) Serve() {
+func (f flowFramework) Serve(transferSession *serve.TransferSession) {
+	err := transferSession.WithFrameworkAndWebDirectory(f.Name(), "Web")
+	if err != nil {
+		pterm.Fatal.Printfln("Error writing transferSession: %s", err)
+	}
+
 	pterm.Info.Println("Finding database credentials")
 
+	// 1) DATABASE CREDENTIALS
 	// Figure out database credentials
 	cmd := exec.Command("./flow", "configuration:show", "--type", "Settings", "--path", "Neos.Flow.persistence.backendOptions")
-
 	output, err := util.RunWrappedCommand(cmd)
 	if err != nil {
 		pterm.Fatal.Printfln("./flow configuration:show did not succeed: %s", err)
@@ -74,15 +80,29 @@ func (f flowFramework) Serve() {
 	if err != nil {
 		pterm.Fatal.Printfln("could not parse output of ./flow configuration:show: %s. Output was: %s", err, output)
 	}
-	pterm.Success.Println("Extracted Database Host %s, User: %s", flowPersistence.Host, flowPersistence.User)
-	resultFile, err := mysql.CreateDump(flowPersistence.ToDbCredentials(), "Data/Temporary/", "dbdump")
+	pterm.Success.Printfln("Extracted Database Host %s, User: %s", flowPersistence.Host, flowPersistence.User)
+
+	// 2) DATABASE DUMP
+	// basically the way it works is:
+	// mysql.CreateDump --> age.Encrypt --> write to file.
+	// but because this is based on streams, we need to construct it the other way around:
+	// 1st: open the target file
+	// 2nd: init age.Encrypt
+	// 3rd: do mysql dump (which feeds the Writer)
+	wc, err := transferSession.EncryptToFile("dump.enc")
+	// 2b) the actual DB dump
+	err = mysql.CreateDump(flowPersistence.ToDbCredentials(), wc)
 	if err != nil {
-		pterm.Fatal.Printfln("could create SQL dump: %s", err)
+		pterm.Fatal.Printfln("could not create SQL dump: %s", err)
 	}
 
-	pterm.Success.Printfln("Stored Database Dump in %s", resultFile)
+	pterm.Success.Printfln("Stored Database Dump in %s", "Web/dump.enc")
+	err = transferSession.UpdateState(serve.STATE_READY)
+	if err != nil {
+		pterm.Fatal.Printfln("could update state: %s", err)
+	}
 }
 
-func NewFlowFramework() frameworks.Framework {
+func NewFlowFramework() types.Framework {
 	return &flowFramework{}
 }

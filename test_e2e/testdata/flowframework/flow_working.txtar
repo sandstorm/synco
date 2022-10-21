@@ -1,0 +1,37 @@
+# prepare
+chmod 755 flow
+
+# server part
+exec synco serve --debug --id abcde --password super-secret-pass --listen :8882 &
+fileContentWithTimeout $WORK/Web/abcde/state Ready 10s
+
+# client part
+exec synco receive --debug http://127.0.0.1:8882/abcde super-secret-pass
+
+-- flow --
+#!/usr/bin/env bash
+
+# This file is a fake ./flow CLI which can fake returning persistence options.
+
+if [[ "$@" == "configuration:show --type Settings --path Neos.Flow.persistence.backendOptions" ]]; then
+
+    cat << EOF
+Configuration "Settings: Neos.Flow.persistence.backendOptions":
+
+driver: pdo_mysql
+host: $DB_HOST
+dbname: $DB_NAME
+user: $DB_USER
+password: $DB_PASSWORD
+charset: utf8mb4
+defaultTableOptions:
+    charset: utf8mb4
+port: $DB_PORT
+EOF
+
+else
+    echo "Unsupported call " $@
+    exit 1
+fi
+
+-- Web/.keepme --

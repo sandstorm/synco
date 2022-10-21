@@ -1,9 +1,11 @@
-package frameworks
+package types
+
+import "github.com/sandstorm/synco/pkg/serve"
 
 type Framework interface {
 	Name() string
 	Detect() bool
-	Serve()
+	Serve(metadata *serve.TransferSession)
 }
 
 type DbCredentials struct {
