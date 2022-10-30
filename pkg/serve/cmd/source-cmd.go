@@ -43,13 +43,13 @@ var ServeCmd = &cobra.Command{
 		progressbar, err := pterm.DefaultProgressbar.WithTotal(3).Start()
 		pterm.PrintOnErrorf("Error initializing progress bar: %e", err)
 
-		pterm.Info.Printfln("Detecting Frameworks")
+		pterm.Debug.Printfln("Detecting Frameworks")
 
 		for _, framework := range RegisteredFrameworks {
 			progressbar.Add(1)
 			pterm.Debug.Printfln("Checking for %s framework", framework.Name())
 			if framework.Detect() {
-				pterm.Success.Printfln("Found %s framework.", framework.Name())
+				pterm.Info.Printfln("Found %s framework.", framework.Name())
 				transferSession, err := serve.NewSession(identifier, password, listen, sigs, done)
 				if err != nil {
 					pterm.Fatal.Printfln("Error creating transfer session: %s", err)

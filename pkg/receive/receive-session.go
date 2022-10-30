@@ -135,7 +135,7 @@ func (rs *ReceiveSession) FetchAndDecryptFileWithProgressBar(fileName string) ([
 	return buf.Bytes(), nil
 }
 
-func (rs *ReceiveSession) FetchFileWithProgressBar(fileName string) ([]byte, error) {
+func (rs *ReceiveSession) FetchFileWithProgressBar(fileName string, progress *pterm.ProgressbarPrinter) ([]byte, error) {
 	urlToLoad, err := url.JoinPath(rs.baseUrl, fileName)
 	pterm.Debug.Printfln("Trying to download %s", urlToLoad)
 	if err != nil {
@@ -154,7 +154,7 @@ func (rs *ReceiveSession) FetchFileWithProgressBar(fileName string) ([]byte, err
 
 	downloadByteCounter := &progressbarWriter{}
 
-	downloadByteCounter.pb, _ = pterm.DefaultProgressbar.WithTotal(int(resp.ContentLength)).Start()
+	downloadByteCounter.pb = progress
 	pipeReader, pipeWriter := io.Pipe()
 
 	// we need to call io.Copy in a goroutine; in order to not block forever.
@@ -193,8 +193,8 @@ func (rs *ReceiveSession) DumpAndDecryptFileWithProgressBar(remoteFileName strin
 	return nil
 }
 
-func (rs *ReceiveSession) DumpFileWithProgressBar(remoteFileName string, localFileName string) error {
-	contents, err := rs.FetchFileWithProgressBar(remoteFileName)
+func (rs *ReceiveSession) DumpFileWithProgressBar(remoteFileName string, localFileName string, progress *pterm.ProgressbarPrinter) error {
+	contents, err := rs.FetchFileWithProgressBar(remoteFileName, progress)
 	if err != nil {
 		return err
 	}

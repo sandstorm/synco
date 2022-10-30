@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"atomicgo.dev/keyboard/keys"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -39,7 +40,7 @@ var ReceiveCmd = &cobra.Command{
 			pterm.Fatal.Printfln("Metadata could not be fetched: %s", err)
 		}
 		pterm.Success.Printfln("Valid Decryption Key")
-		pterm.Success.Printfln("Framework on server: %s", meta.FrameworkName)
+		pterm.Info.Printfln("Framework on server: %s", meta.FrameworkName)
 
 		if meta.State != dto.STATE_READY {
 			pterm.Error.Printfln("Received state '%s', but you need to run the tool once Ready state exists. Please re-run!", meta.State)
@@ -52,8 +53,12 @@ var ReceiveCmd = &cobra.Command{
 
 		if interactive {
 			filesToDownload, err = pterm.DefaultInteractiveMultiselect.
+				WithDefaultText("Select data to download").
 				WithOptions(filesToDownload).
 				WithDefaultOptions(filesToDownload).
+				WithKeySelect(keys.Space).
+				WithKeyConfirm(keys.Enter).
+				WithFilter(false).
 				Show()
 			if err != nil {
 				pterm.Fatal.Printfln("File Selector could not be shown: %s", err)
@@ -62,7 +67,7 @@ var ReceiveCmd = &cobra.Command{
 
 		for _, fileToDownload := range filesToDownload {
 			fileSet := meta.FileSetByLabel(fileToDownload)
-			pterm.Info.Printfln("Downloading: %s", fileToDownload, fileSet.Type)
+			pterm.Info.Printfln("Downloading: %s (%s)", fileToDownload, fileSet.Type)
 
 			switch fileSet.Type {
 			case dto.TYPE_MYSQLDUMP:
@@ -78,6 +83,8 @@ var ReceiveCmd = &cobra.Command{
 			}
 		}
 
+		pterm.Success.Printfln("All downloaded to dump/")
+
 		/*for _, framework := range RegisteredFrameworks {
 			if framework.Name() == meta.frameworkName {
 				framework.Receive(receiveSession)
@@ -85,7 +92,10 @@ var ReceiveCmd = &cobra.Command{
 			}
 		}
 		pterm.Error.Printfln("Framework %s implementation not detected on client side. This means your synchro client needs to be upgraded to match the server side version", pterm.ThemeDefault.HighlightStyle.Sprint(frameworkName))
-		os.Exit(1)*/
+		*/
+
+		pterm.Success.Printfln("FINISHED :) Now, terminate %s on the server side by pressing %s.", pterm.ThemeDefault.PrimaryStyle.Sprint("synco serve"), pterm.ThemeDefault.PrimaryStyle.Sprint("Ctrl-C"))
+		os.Exit(0)
 	},
 }
 
@@ -111,7 +121,13 @@ func downloadPublicFiles(receiveSession *receive.ReceiveSession, fileSet *dto.Fi
 		return fmt.Errorf("error unmarshalling %s: %w", indexFileName, err)
 	}
 
+	i := 0
+	skipped := 0
+	// download file.
+	progress, _ := pterm.DefaultProgressbar.WithTotal(int(fileSet.PublicFiles.SizeBytes)).Start()
+
 	for fileName, fileDefinition := range publicFilesIndex {
+		i++
 		// create parent directory
 		err = os.MkdirAll(filepath.Dir(fileName), 0755)
 		if err != nil {
@@ -124,6 +140,8 @@ func downloadPublicFiles(receiveSession *receive.ReceiveSession, fileSet *dto.Fi
 			if fileStat.Size() == fileDefinition.SizeBytes && fileStat.ModTime().Unix() == fileDefinition.MTime {
 				// file exists; and exists with same size and modification time. We can skip the download.
 				pterm.Debug.Printfln("Ignoring file %s, because it exists already with same size and modification timestamp", fileName)
+				progress.Add(int(fileDefinition.SizeBytes))
+				skipped++
 				continue
 			} else if fileStat.Size() != fileDefinition.SizeBytes {
 				pterm.Debug.Printfln("Re-downloading file %s, because file sizes do not match: %d (local) != %d (remote)", fileName, fileStat.Size(), fileDefinition.SizeBytes)
@@ -135,8 +153,7 @@ func downloadPublicFiles(receiveSession *receive.ReceiveSession, fileSet *dto.Fi
 			return fmt.Errorf("error calling stat on %s: %w", fileName, err)
 		}
 
-		// download file.
-		err = receiveSession.DumpFileWithProgressBar(strings.ReplaceAll(fileDefinition.PublicUri, "<BASE>", ".."), fileName)
+		err = receiveSession.DumpFileWithProgressBar(strings.ReplaceAll(fileDefinition.PublicUri, "<BASE>", ".."), fileName, progress)
 		if err != nil {
 			return fmt.Errorf("error on downloading %s to %s: %w", fileDefinition.PublicUri, fileName, err)
 		}
@@ -148,6 +165,7 @@ func downloadPublicFiles(receiveSession *receive.ReceiveSession, fileSet *dto.Fi
 			return err
 		}
 	}
+	pterm.DefaultBasicText.Sprintf("Downloaded %d files (Skipped: %d)", len(publicFilesIndex), skipped)
 
 	return nil
 }

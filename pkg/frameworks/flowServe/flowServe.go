@@ -77,11 +77,11 @@ func (f flowServe) Serve(transferSession *serve.TransferSession) {
 	if err != nil {
 		pterm.Fatal.Printfln("could not update state: %s", err)
 	}
-	pterm.Success.Printfln("Ready: synco receive http://your-base-url/%s %s", transferSession.Identifier, transferSession.Password)
+	pterm.Success.Printfln("Ready: synco receive http://HOST/%s %s", transferSession.Identifier, transferSession.Password)
 }
 
 func (f flowServe) extractDatabaseCredentialsFromFlow() flowPersistenceBackendOptions {
-	pterm.Info.Println("Finding database credentials")
+	pterm.Debug.Println("Finding database credentials")
 	cmd := exec.Command("./flow", "configuration:show", "--type", "Settings", "--path", "Neos.Flow.persistence.backendOptions")
 	output, err := util.RunWrappedCommand(cmd)
 	if err != nil {
@@ -95,7 +95,7 @@ func (f flowServe) extractDatabaseCredentialsFromFlow() flowPersistenceBackendOp
 	if err != nil {
 		pterm.Fatal.Printfln("could not parse output of ./flow configuration:show: %s. Output was: %s", err, output)
 	}
-	pterm.Success.Printfln("Extracted Database Host %s, User: %s", flowPersistence.Host, flowPersistence.User)
+	pterm.Info.Printfln("Extracted Database Host %s, User: %s", flowPersistence.Host, flowPersistence.User)
 	return flowPersistence
 }
 
@@ -128,7 +128,7 @@ func (f flowServe) databaseDump(transferSession *serve.TransferSession, flowPers
 		pterm.Fatal.Printfln("could not update SQL dump metadata: %s", err)
 	}
 
-	pterm.Success.Printfln("Stored Database Dump in %s", "dump.sql.enc")
+	pterm.Info.Printfln("Stored Database Dump in %s", "dump.sql.enc")
 }
 
 func (f flowServe) extractResources(transferSession *serve.TransferSession) {
@@ -195,7 +195,7 @@ func (f flowServe) extractResources(transferSession *serve.TransferSession) {
 	if err != nil {
 		pterm.Fatal.Printfln("could not update Resource dump metadata: %s", err)
 	}
-	pterm.Success.Printfln("Extracted Resource Index")
+	pterm.Info.Printfln("Extracted Resource Index")
 }
 
 func NewFlowFramework() common.ServeFramework {
