@@ -3,10 +3,13 @@ module github.com/sandstorm/synco
 go 1.18
 
 require (
+	atomicgo.dev/keyboard v0.2.8
 	filippo.io/age v1.0.0
+	github.com/DATA-DOG/go-sqlmock v1.5.0
 	github.com/dop251/goja v0.0.0-20221003171542-5ea1285e6c91
 	github.com/dustin/go-humanize v1.0.0
 	github.com/go-sql-driver/mysql v1.6.0
+	github.com/jamf/go-mysqldump v0.7.1
 	github.com/logrusorgru/aurora v2.0.3+incompatible
 	github.com/manifoldco/promptui v0.9.0
 	github.com/orlangure/gnomock v0.23.0
@@ -15,6 +18,7 @@ require (
 	github.com/repeale/fp-go v0.11.1
 	github.com/rogpeppe/go-internal v1.9.0
 	github.com/spf13/cobra v1.4.0
+	github.com/stretchr/testify v1.8.0
 	gopkg.in/yaml.v3 v3.0.1
 	k8s.io/api v0.25.3
 	k8s.io/apimachinery v0.25.3
@@ -23,7 +27,6 @@ require (
 
 require (
 	atomicgo.dev/cursor v0.1.1 // indirect
-	atomicgo.dev/keyboard v0.2.8 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 // indirect
 	github.com/Microsoft/go-winio v0.5.2 // indirect
 	github.com/PuerkitoBio/purell v1.1.1 // indirect
@@ -62,6 +65,7 @@ require (
 	github.com/opencontainers/image-spec v1.0.2 // indirect
 	github.com/pkg/diff v0.0.0-20210226163009-20ebb0f2a09e // indirect
 	github.com/pkg/errors v0.9.1 // indirect
+	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/rivo/uniseg v0.2.0 // indirect
 	github.com/sirupsen/logrus v1.8.1 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect

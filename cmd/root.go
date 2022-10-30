@@ -24,7 +24,7 @@ This template prints the date or time to the terminal.`,
 cli-template date --format 20060102
 cli-template time
 cli-template time --live`,
-	Version: "v0.1.0", // <---VERSION---> Updating this version, will also create a new GitHub release.
+	Version: "v0.1.1", // <---VERSION---> Updating this version, will also create a new GitHub release.
 	// Uncomment the following lines if your bare application has an action associated with it:
 	// RunE: func(cmd *cobra.ReceiveCmd, args []string) error {
 	// 	// Your code here
