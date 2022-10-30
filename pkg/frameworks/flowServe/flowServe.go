@@ -1,6 +1,7 @@
 package flowServe
 
 import (
+	"encoding/json"
 	"github.com/pterm/pterm"
 	"github.com/sandstorm/synco/pkg/common"
 	"github.com/sandstorm/synco/pkg/common/dto"
@@ -8,8 +9,11 @@ import (
 	"github.com/sandstorm/synco/pkg/util"
 	"github.com/sandstorm/synco/pkg/util/mysql"
 	"gopkg.in/yaml.v3"
+	"log"
 	"os"
 	"os/exec"
+	"path"
+	"path/filepath"
 	"strings"
 )
 
@@ -64,10 +68,20 @@ func (f flowServe) Serve(transferSession *serve.TransferSession) {
 		pterm.Fatal.Printfln("Error writing transferSession: %s", err)
 	}
 
-	pterm.Info.Println("Finding database credentials")
+	flowPersistence := f.extractDatabaseCredentialsFromFlow()
+	f.databaseDump(transferSession, flowPersistence)
+	f.extractResources(transferSession)
 
-	// 1) DATABASE CREDENTIALS
-	// Figure out database credentials
+	transferSession.Meta.State = dto.STATE_READY
+	err = transferSession.UpdateMetadata()
+	if err != nil {
+		pterm.Fatal.Printfln("could not update state: %s", err)
+	}
+	pterm.Success.Printfln("Ready: synco receive http://your-base-url/%s %s", transferSession.Identifier, transferSession.Password)
+}
+
+func (f flowServe) extractDatabaseCredentialsFromFlow() flowPersistenceBackendOptions {
+	pterm.Info.Println("Finding database credentials")
 	cmd := exec.Command("./flow", "configuration:show", "--type", "Settings", "--path", "Neos.Flow.persistence.backendOptions")
 	output, err := util.RunWrappedCommand(cmd)
 	if err != nil {
@@ -82,7 +96,10 @@ func (f flowServe) Serve(transferSession *serve.TransferSession) {
 		pterm.Fatal.Printfln("could not parse output of ./flow configuration:show: %s. Output was: %s", err, output)
 	}
 	pterm.Success.Printfln("Extracted Database Host %s, User: %s", flowPersistence.Host, flowPersistence.User)
+	return flowPersistence
+}
 
+func (f flowServe) databaseDump(transferSession *serve.TransferSession, flowPersistence flowPersistenceBackendOptions) {
 	// 2) DATABASE DUMP
 	// basically the way it works is:
 	// mysql.CreateDump --> age.Encrypt --> write to file.
@@ -112,12 +129,59 @@ func (f flowServe) Serve(transferSession *serve.TransferSession) {
 	}
 
 	pterm.Success.Printfln("Stored Database Dump in %s", "dump.sql.enc")
-	transferSession.Meta.State = dto.STATE_READY
+}
+
+func (f flowServe) extractResources(transferSession *serve.TransferSession) {
+	indexFileName := "Resources.index.json.enc"
+	resourceFilesIndex := make(dto.PublicFilesIndex)
+
+	err := filepath.Walk("./Web/_Resources/Persistent",
+		func(filePath string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+			if info.IsDir() {
+				// skip directories on traversal
+				return nil
+			}
+			filePath = strings.TrimPrefix(filePath, "Web/")
+
+			// Flow stores files in /..../<resourceId>/<filename>.jpg; so we extract the resourceId here.
+			resourceId := path.Base(path.Dir(filePath))
+
+			resourceFilesIndex["Resources/"+resourceId[0:1]+"/"+resourceId[1:2]+"/"+resourceId[2:3]+"/"+resourceId[3:4]+"/"+resourceId] = dto.PublicFilesIndexEntry{
+				SizeBytes: uint64(info.Size()),
+				PublicUri: "<BASE>/" + filePath,
+			}
+			return nil
+		})
+	if err != nil {
+		log.Println(err)
+	}
+
+	bytes, err := json.Marshal(resourceFilesIndex)
+	if err != nil {
+		pterm.Fatal.Printfln("could not encode resourceFilesIndex: %s", err)
+	}
+
+	err = transferSession.EncryptBytesToFile(indexFileName, bytes)
+	if err != nil {
+		pterm.Fatal.Printfln("could not encrypt to file: %s", err)
+	}
+
+	fileSet := &dto.FileSet{
+		Name: "Resources",
+		Type: dto.TYPE_PUBLICFILES,
+		PublicFiles: &dto.FileSetPublicFiles{
+			IndexFileName: indexFileName,
+		},
+	}
+	transferSession.Meta.FileSets = append(transferSession.Meta.FileSets, fileSet)
 	err = transferSession.UpdateMetadata()
 	if err != nil {
-		pterm.Fatal.Printfln("could not update state: %s", err)
+		pterm.Fatal.Printfln("could not update Resource dump metadata: %s", err)
 	}
-	pterm.Success.Printfln("Ready: synco receive http://your-base-url/%s %s", transferSession.Identifier, transferSession.Password)
+	pterm.Success.Printfln("Extracted Resource Index")
 }
 
 func NewFlowFramework() common.ServeFramework {

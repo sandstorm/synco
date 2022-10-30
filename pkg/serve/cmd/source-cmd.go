@@ -59,6 +59,7 @@ var ServeCmd = &cobra.Command{
 				pterm.Debug.Printfln("Waiting for ctrl-c")
 				<-done
 				pterm.Debug.Printfln("Exiting")
+				os.Exit(0)
 				return
 			}
 		}

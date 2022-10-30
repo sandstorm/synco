@@ -117,9 +117,9 @@ func (ts *TransferSession) UpdateMetadata() error {
 	return os.WriteFile(ts.filepathInWorkDir("state"), []byte(ts.Meta.State), 0644)
 }
 
-func (ts *TransferSession) EncryptStringToFile(fileName string, contents string) error {
+func (ts *TransferSession) EncryptBytesToFile(fileName string, contents []byte) error {
 	wc, err := ts.EncryptToFile(fileName)
-	_, err = wc.Write([]byte(contents))
+	_, err = wc.Write(contents)
 	if err != nil {
 		return err
 	}

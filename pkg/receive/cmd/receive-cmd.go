@@ -1,12 +1,16 @@
 package cmd
 
 import (
+	"encoding/json"
+	"fmt"
 	"github.com/pterm/pterm"
 	"github.com/repeale/fp-go"
 	"github.com/sandstorm/synco/pkg/common/dto"
 	"github.com/sandstorm/synco/pkg/receive"
 	"github.com/spf13/cobra"
 	"os"
+	"path/filepath"
+	"strings"
 )
 
 var interactive bool
@@ -61,6 +65,8 @@ var ReceiveCmd = &cobra.Command{
 			switch fileSet.Type {
 			case dto.TYPE_MYSQLDUMP:
 				err = downloadMysqldump(receiveSession, fileSet)
+			case dto.TYPE_PUBLICFILES:
+				err = downloadPublicFiles(receiveSession, fileSet)
 			default:
 				pterm.Fatal.Printfln("File Set type %s was unimplemented.", fileSet.Type)
 			}
@@ -82,7 +88,40 @@ var ReceiveCmd = &cobra.Command{
 }
 
 func downloadMysqldump(receiveSession *receive.ReceiveSession, fileSet *dto.FileSet) error {
-	return receiveSession.DumpFileWithProgressBar(fileSet.MysqlDump.FileName, fileSet.Name)
+	return receiveSession.DumpAndDecryptFileWithProgressBar(fileSet.MysqlDump.FileName, fileSet.Name+".sql")
+}
+
+func downloadPublicFiles(receiveSession *receive.ReceiveSession, fileSet *dto.FileSet) error {
+	indexFileName := fileSet.Name + ".index.json"
+	err := receiveSession.DumpAndDecryptFileWithProgressBar(fileSet.PublicFiles.IndexFileName, indexFileName)
+	if err != nil {
+		return fmt.Errorf("error dumping/decrypting files: %w", err)
+	}
+
+	indexBytes, err := receiveSession.FileContentsInWorkDir(indexFileName)
+	if err != nil {
+		return fmt.Errorf("error reading file contents in workdir: %w", err)
+	}
+
+	var publicFilesIndex dto.PublicFilesIndex
+	err = json.Unmarshal(indexBytes, &publicFilesIndex)
+	if err != nil {
+		return fmt.Errorf("error unmarshalling %s: %w", indexFileName, err)
+	}
+
+	for fileName, fileDefinition := range publicFilesIndex {
+		// TODO: Check for changes
+		err = os.MkdirAll(filepath.Dir(fileName), 0755)
+		if err != nil {
+			return fmt.Errorf("error creating directory %s: %w", filepath.Dir(fileName), err)
+		}
+		err = receiveSession.DumpFileWithProgressBar(strings.ReplaceAll(fileDefinition.PublicUri, "<BASE>", ".."), fileName)
+		if err != nil {
+			return fmt.Errorf("error on downloading %s to %s: %w", fileDefinition.PublicUri, fileName, err)
+		}
+	}
+
+	return nil
 }
 
 func init() {

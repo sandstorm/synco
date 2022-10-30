@@ -93,7 +93,7 @@ func (rs *ReceiveSession) FetchMeta() (*dto.Meta, error) {
 	return meta, nil
 }
 
-func (rs *ReceiveSession) FetchFileWithProgressBar(fileName string) ([]byte, error) {
+func (rs *ReceiveSession) FetchAndDecryptFileWithProgressBar(fileName string) ([]byte, error) {
 	urlToLoad, err := url.JoinPath(rs.baseUrl, fileName)
 	pterm.Debug.Printfln("Trying to download %s", urlToLoad)
 	if err != nil {
@@ -119,9 +119,14 @@ func (rs *ReceiveSession) FetchFileWithProgressBar(fileName string) ([]byte, err
 		pipeWriter.Close()
 	}()
 
-	fmt.Println("JAAAA2")
+	if err != nil {
+		return nil, err
+	}
+
 	decryptedReader, err := age.Decrypt(pipeReader, rs.identity)
-	//decryptedReader, err := age.Decrypt(resp.Body, rs.identity)
+	if err != nil {
+		return nil, err
+	}
 	buf := new(bytes.Buffer)
 	_, err = buf.ReadFrom(decryptedReader)
 	if err != nil {
@@ -130,13 +135,75 @@ func (rs *ReceiveSession) FetchFileWithProgressBar(fileName string) ([]byte, err
 	return buf.Bytes(), nil
 }
 
+func (rs *ReceiveSession) FetchFileWithProgressBar(fileName string) ([]byte, error) {
+	urlToLoad, err := url.JoinPath(rs.baseUrl, fileName)
+	pterm.Debug.Printfln("Trying to download %s", urlToLoad)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := rs.httpClient.Get(urlToLoad)
+	if err != nil {
+		return nil, err
+	}
+	// prevent resource leaks
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("Response status code for %s is %d", urlToLoad, resp.StatusCode)
+	}
+
+	downloadByteCounter := &progressbarWriter{}
+
+	downloadByteCounter.pb, _ = pterm.DefaultProgressbar.WithTotal(int(resp.ContentLength)).Start()
+	pipeReader, pipeWriter := io.Pipe()
+
+	// we need to call io.Copy in a goroutine; in order to not block forever.
+	// NOTE: Not sure how to catch the error here :)
+	go func() {
+		_, _ = io.Copy(pipeWriter, io.TeeReader(resp.Body, downloadByteCounter))
+		pipeWriter.Close()
+	}()
+
+	if err != nil {
+		return nil, err
+	}
+
+	buf := new(bytes.Buffer)
+	_, err = buf.ReadFrom(pipeReader)
+	if err != nil {
+		return nil, fmt.Errorf("Error reading file from server (1): %w", err)
+	}
+	return buf.Bytes(), nil
+}
+
+func (rs *ReceiveSession) DumpAndDecryptFileWithProgressBar(remoteFileName string, localFileName string) error {
+	contents, err := rs.FetchAndDecryptFileWithProgressBar(remoteFileName)
+	if err != nil {
+		return err
+	}
+	workdirFilePath := rs.filepathInWorkDir(localFileName)
+	err = os.MkdirAll(filepath.Dir(workdirFilePath), 0755)
+	if err != nil {
+		return err
+	}
+	err = os.WriteFile(workdirFilePath, contents, 0644)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func (rs *ReceiveSession) DumpFileWithProgressBar(remoteFileName string, localFileName string) error {
 	contents, err := rs.FetchFileWithProgressBar(remoteFileName)
 	if err != nil {
 		return err
 	}
-	fmt.Println("JAAAA")
-	err = os.WriteFile(rs.filepathInWorkDir(localFileName), contents, 0644)
+	workdirFilePath := rs.filepathInWorkDir(localFileName)
+	err = os.MkdirAll(filepath.Dir(workdirFilePath), 0755)
+	if err != nil {
+		return err
+	}
+	err = os.WriteFile(workdirFilePath, contents, 0644)
 	if err != nil {
 		return err
 	}
@@ -145,6 +212,10 @@ func (rs *ReceiveSession) DumpFileWithProgressBar(remoteFileName string, localFi
 
 func (rs *ReceiveSession) filepathInWorkDir(fileName string) string {
 	return filepath.Join(*rs.workDir, fileName)
+}
+
+func (rs *ReceiveSession) FileContentsInWorkDir(fileName string) ([]byte, error) {
+	return os.ReadFile(rs.filepathInWorkDir(fileName))
 }
 
 // progressbarWriter counts the number of bytes written to it and adds those to a progressbar;
