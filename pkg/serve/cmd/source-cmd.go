@@ -15,10 +15,11 @@ var password string
 var listen string
 
 var ServeCmd = &cobra.Command{
-	Use:     "serve",
-	Short:   "Wizard to be executed in source",
-	Long:    `...`,
-	Example: `synco serve `,
+	Use:   "serve",
+	Short: "Wizard to be executed in source",
+	Long: `The server part is run on the source / production system, where it automatically discovers used frameworks
+and figures out what to extract.`,
+	Example: `synco serve`,
 	// Uncomment the following lines if your bare application has an action associated with it:
 	Run: func(cmd *cobra.Command, args []string) {
 		sigs := make(chan os.Signal, 1)

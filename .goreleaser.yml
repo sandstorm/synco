@@ -76,3 +76,30 @@ archives:
     format_overrides:
       - goos: windows
         format: zip
+brews:
+  -
+    name: sku
+
+    tap:
+      owner: sandstorm
+      name: homebrew-tap
+
+    # Git author used to commit to the repository.
+    # Defaults are shown.
+    commit_author:
+      name: Sandstorm Release Bot
+      email: release-bot@sandstorm.de
+
+    # Folder inside the repository to put the formula.
+    # Default is the root folder.
+    folder: Formula
+
+    # Your app's homepage.
+    # Default is empty.
+    homepage: "https://github.com/sandstorm/synco"
+
+    # Your app's description.
+    # Default is empty.
+    description: "Sandstorm Synco"
+    install: |
+      bin.write_exec_script libexec/"synco"

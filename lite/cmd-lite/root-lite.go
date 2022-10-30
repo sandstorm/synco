@@ -16,14 +16,21 @@ import (
 var rootCmd = &cobra.Command{
 	Use:   "synco-lite",
 	Short: "(LITE VERSION) an Database and File Dump Downloader for synchronizing production, staging, and local development",
-	Long: `This is a template CLI application, which can be used as a boilerplate for awesome CLI tools written in Go.
-This template prints the date or time to the terminal.`,
-	Example: `synco  date
-cli-template date --format 20060102
-cli-template time
-cli-template time --live`,
+	Long: `Synco is a content-sync tool from production to local dev and staging environments.
+The server part is run on the source / production system, where it automatically discovers used frameworks
+and figures out what to extract.
+
+The client part, which you then run locally, downloads the dump (and will later also add it to your instance).
+
+All data is encrypted and transferred via existing HTTP channels, piggy-backed on normal web applications.
+`,
+	Example: `# on server
+synco serve
+
+# on client
+synco receive http://your-server/abcde password-from-server`,
 	// Uncomment the following lines if your bare application has an action associated with it:
-	// RunE: func(cmd *cobra.Command, args []string) error {
+	// RunE: func(cmd *cobra.ReceiveCmd, args []string) error {
 	// 	// Your code here
 	//
 	// 	return nil
