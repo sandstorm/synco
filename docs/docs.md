@@ -1,7 +1,7 @@
 # synco
 
 ## Usage
-> This cli template shows the date and time in the terminal
+> an Database and File Dump Downloader for synchronizing production, staging, and local development
 
 synco
 
@@ -14,7 +14,7 @@ This template prints the date or time to the terminal.
 ## Examples
 
 ```bash
-cli-template date
+synco  date
 cli-template date --format 20060102
 cli-template time
 cli-template time --live
@@ -32,6 +32,8 @@ cli-template time --live
 |-------|-----|
 |`synco completion`|Generate the autocompletion script for the specified shell|
 |`synco help`|Help about any command|
+|`synco receive`|Wizard to be executed in target|
+|`synco serve`|Wizard to be executed in source|
 # ... completion
 `synco completion`
 
@@ -198,7 +200,55 @@ synco help [command]
 Help provides help for any command in the application.
 Simply type synco help [path to command] for full details.
 ```
+# ... receive
+`synco receive`
+
+## Usage
+> Wizard to be executed in target
+
+synco receive
+
+## Description
+
+```
+...
+```
+## Examples
+
+```bash
+synco receive [url] [password]
+```
+
+## Flags
+|Flag|Usage|
+|----|-----|
+|`--interactive`|identifier for the decryption (default true)|
+# ... serve
+`synco serve`
+
+## Usage
+> Wizard to be executed in source
+
+synco serve
+
+## Description
+
+```
+...
+```
+## Examples
+
+```bash
+synco serve 
+```
+
+## Flags
+|Flag|Usage|
+|----|-----|
+|`--id string`|identifier for the decryption|
+|`--listen string`|port to create a HTTP server on, if any|
+|`--password string`|password to encrypt the files for|
 
 
 ---
-> **Documentation automatically generated with [PTerm](https://github.com/pterm/cli-template) on 15 October 2022**
+> **Documentation automatically generated with [PTerm](https://github.com/pterm/cli-template) on 30 October 2022**
