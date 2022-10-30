@@ -7,7 +7,6 @@ import (
 	"github.com/sandstorm/synco/pkg/common"
 	mysqldump "github.com/sandstorm/synco/pkg/util/mysql/go_mysqldump"
 	"io"
-	"sync"
 )
 
 func CreateDump(dbCredentials *common.DbCredentials, writer io.WriteCloser) (err error) {
@@ -26,16 +25,9 @@ func CreateDump(dbCredentials *common.DbCredentials, writer io.WriteCloser) (err
 
 	// Register database with mysqldump
 
-	dumper := mysqldump.NewDumper(db, writer, 1024)
+	err = mysqldump.Dump(db, writer)
 	if err != nil {
 		return fmt.Errorf("error registering database: %w", err)
-	}
-
-	// Dump database to file
-	var wg sync.WaitGroup
-	err = dumper.DumpAllTables(dbCredentials.DbName, &wg)
-	if err != nil {
-		return fmt.Errorf("error dumping: %w", err)
 	}
 
 	// Close dumper, connected database and file stream.
