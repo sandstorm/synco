@@ -1,6 +1,6 @@
 module github.com/sandstorm/synco
 
-go 1.18
+go 1.19
 
 require (
 	atomicgo.dev/keyboard v0.2.8
