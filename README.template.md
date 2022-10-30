@@ -140,8 +140,51 @@ Based on the workflow above, we can implement an even more streamlined â€œsyncoâ
 
 * synco
     * generic tool, usually installed via home brew or otherwise.
-* synco-source
-    * only the "source" command parts; in order to shrink the tool as small as possible for the production server download.
+* synco-lite
+    * only the "serve" command parts; in order to shrink the tool as small as possible for the production server download.
+
+### Sync Format
+
+Goals:
+- Incremental Syncing (Don't download files you already have)
+- Encrypted / non Encrypted Syncing (depending if the source files are already public or not)
+- Partial Syncing (only download what you want (no resources if you do not want them))
+
+```
+meta.json
+{
+  state: "Created|Initializing|Ready",
+  frameworkName: "Neos"
+  files: [
+    {
+      name: "db-dump",
+      type: "single",
+      single: {
+        fileName: "db-dump.sql.enc"
+        sizeBytes: 500000
+      }
+    },
+    {
+      name: "persistent",
+      type: "publicFiles",
+      publicFiles: {
+        indexFileName: "persistent-index.json.enc",
+        sizeBytes: 500000
+      }
+    }
+  ]
+}
+
+persistent-index.json:
+
+{
+  "Foo/Bar/bla": {
+    "mtime": 123456789,
+    "sizeBytes": 500000,
+    "publicUri": "<BASE>/_Web/Resources/....." 
+  }
+}
+```
 
 ## Previous Idea Iterations
 

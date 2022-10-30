@@ -24,17 +24,26 @@ func TestMain(m *testing.M) {
 		},
 	}))
 }
-func startDb(t *testing.T) (string, string) {
 
+const queries = `
+	drop table if exists t;
+	create table t(a int);
+	insert into t (a) values (1);
+	insert into t (a) values (2);
+`
+
+func startDb(t *testing.T) (string, string) {
 	t.Helper()
 	p := mariadb.Preset(
 		mariadb.WithUser("admin", "password"),
 		mariadb.WithDatabase("dummy1"),
+		mariadb.WithQueries(queries),
 	)
 	var container *gnomock.Container
 	var err error
 	if reuseDatabaseContainer {
-		container, err = gnomock.Start(p, gnomock.WithContainerReuse(), gnomock.WithContainerName("synco-test-flow"))
+		// TO DEBUG: gnomock.WithDebugMode(),
+		container, err = gnomock.Start(p, gnomock.WithDebugMode(), gnomock.WithContainerReuse(), gnomock.WithContainerName("synco-test-flow"))
 	} else {
 		container, err = gnomock.Start(p)
 		t.Cleanup(func() {
@@ -50,6 +59,7 @@ func startDb(t *testing.T) (string, string) {
 
 func TestFlowFrameworkExportsDatabase(t *testing.T) {
 	dbHost, dbPort := startDb(t)
+	//dbHost, dbPort := "", ""
 	testscript.Run(t, testscript.Params{
 		Dir: "testdata/flowframework",
 		Setup: func(env *testscript.Env) error {

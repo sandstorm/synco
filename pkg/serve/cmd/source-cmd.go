@@ -1,17 +1,14 @@
-package source
+package cmd
 
 import (
 	"github.com/pterm/pterm"
-	"github.com/sandstorm/synco/pkg/frameworks/flow"
-	"github.com/sandstorm/synco/pkg/frameworks/types"
 	"github.com/sandstorm/synco/pkg/serve"
+	"github.com/sandstorm/synco/pkg/util"
 	"github.com/spf13/cobra"
 	"os"
+	"os/signal"
+	"syscall"
 )
-
-var registeredFrameworks = [...]types.Framework{
-	flow.NewFlowFramework(),
-}
 
 var identifier string
 var password string
@@ -24,22 +21,44 @@ var ServeCmd = &cobra.Command{
 	Example: `synco serve `,
 	// Uncomment the following lines if your bare application has an action associated with it:
 	Run: func(cmd *cobra.Command, args []string) {
+		sigs := make(chan os.Signal, 1)
+		done := make(chan bool, 1)
+		signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+
+		var err error
+		if len(password) == 0 {
+			password, err = util.GenerateRandomString(30)
+			if err != nil {
+				pterm.Fatal.Printfln("Error generating random password: %s", err)
+			}
+		}
+
+		if len(identifier) == 0 {
+			identifier, err = util.GenerateRandomString(7)
+			if err != nil {
+				pterm.Fatal.Printfln("Error generating identifier password: %s", err)
+			}
+		}
+
 		progressbar, err := pterm.DefaultProgressbar.WithTotal(3).Start()
 		pterm.PrintOnErrorf("Error initializing progress bar: %e", err)
 
 		pterm.Info.Printfln("Detecting Frameworks")
 
-		for _, framework := range registeredFrameworks {
+		for _, framework := range RegisteredFrameworks {
 			progressbar.Add(1)
 			pterm.Debug.Printfln("Checking for %s framework", framework.Name())
 			if framework.Detect() {
 				pterm.Success.Printfln("Found %s framework.", framework.Name())
-				transferSession, err := serve.NewSession(identifier, password, listen)
+				transferSession, err := serve.NewSession(identifier, password, listen, sigs, done)
 				if err != nil {
 					pterm.Fatal.Printfln("Error creating transfer session: %s", err)
 				}
 
 				framework.Serve(transferSession)
+				pterm.Debug.Printfln("Waiting for ctrl-c")
+				<-done
+				pterm.Debug.Printfln("Exiting")
 				return
 			}
 		}

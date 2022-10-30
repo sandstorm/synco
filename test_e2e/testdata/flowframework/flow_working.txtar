@@ -6,7 +6,7 @@ exec synco serve --debug --id abcde --password super-secret-pass --listen :8882 
 fileContentWithTimeout $WORK/Web/abcde/state Ready 10s
 
 # client part
-exec synco receive --debug http://127.0.0.1:8882/abcde super-secret-pass
+exec synco receive --debug http://127.0.0.1:8882/abcde super-secret-pass --interactive=false
 
 -- flow --
 #!/usr/bin/env bash

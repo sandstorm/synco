@@ -1,8 +1,8 @@
 package cmd
 
 import (
-	"github.com/sandstorm/synco/cmd/receive"
-	"github.com/sandstorm/synco/cmd/source"
+	cmd2 "github.com/sandstorm/synco/pkg/receive/cmd"
+	"github.com/sandstorm/synco/pkg/serve/cmd"
 	"github.com/spf13/cobra"
 	"os"
 	"os/signal"
@@ -26,7 +26,7 @@ cli-template time
 cli-template time --live`,
 	Version: "v0.0.3", // <---VERSION---> Updating this version, will also create a new GitHub release.
 	// Uncomment the following lines if your bare application has an action associated with it:
-	// RunE: func(cmd *cobra.CommandDeclaration, args []string) error {
+	// RunE: func(cmd *cobra.ReceiveCmd, args []string) error {
 	// 	// Your code here
 	//
 	// 	return nil
@@ -36,8 +36,8 @@ cli-template time --live`,
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
-	rootCmd.AddCommand(source.ServeCmd)
-	rootCmd.AddCommand(receive.CommandDeclaration)
+	rootCmd.AddCommand(cmd.ServeCmd)
+	rootCmd.AddCommand(cmd2.ReceiveCmd)
 
 	// Fetch user interrupt
 	c := make(chan os.Signal, 1)

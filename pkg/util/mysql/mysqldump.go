@@ -4,13 +4,13 @@ import (
 	"database/sql"
 	"fmt"
 	"github.com/go-sql-driver/mysql"
-	"github.com/sandstorm/synco/pkg/frameworks/types"
+	"github.com/sandstorm/synco/pkg/common"
 	mysqldump "github.com/sandstorm/synco/pkg/util/mysql/go_mysqldump"
 	"io"
 	"sync"
 )
 
-func CreateDump(dbCredentials *types.DbCredentials, writer io.WriteCloser) (err error) {
+func CreateDump(dbCredentials *common.DbCredentials, writer io.WriteCloser) (err error) {
 	// Open connection to database
 	config := mysql.NewConfig()
 	config.User = dbCredentials.User
