@@ -218,6 +218,18 @@ func (rs *ReceiveSession) FileContentsInWorkDir(fileName string) ([]byte, error)
 	return os.ReadFile(rs.filepathInWorkDir(fileName))
 }
 
+func (rs *ReceiveSession) SetMTimeInWorkDir(fileName string, mtime time.Time) error {
+	err := os.Chtimes(rs.filepathInWorkDir(fileName), mtime, mtime)
+	if err != nil {
+		return fmt.Errorf("error on setting modification times of %s: %w", fileName, err)
+	}
+	return nil
+}
+
+func (rs *ReceiveSession) StatInWorkDir(fileName string) (os.FileInfo, error) {
+	return os.Stat(rs.filepathInWorkDir(fileName))
+}
+
 // progressbarWriter counts the number of bytes written to it and adds those to a progressbar;
 // taken from https://github.com/pterm/pterm/blob/016c0b4836eb2d047abd52cdfa2f598765a0340c/putils/download-with-progressbar.go
 type progressbarWriter struct {

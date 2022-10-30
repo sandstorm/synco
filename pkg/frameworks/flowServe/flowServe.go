@@ -135,6 +135,7 @@ func (f flowServe) extractResources(transferSession *serve.TransferSession) {
 	indexFileName := "Resources.index.json.enc"
 	resourceFilesIndex := make(dto.PublicFilesIndex)
 
+	totalSizeBytes := uint64(0)
 	err := filepath.Walk("./Web/_Resources/Persistent",
 		func(filePath string, info os.FileInfo, err error) error {
 			if err != nil {
@@ -144,13 +145,25 @@ func (f flowServe) extractResources(transferSession *serve.TransferSession) {
 				// skip directories on traversal
 				return nil
 			}
+
+			realPath, err := filepath.EvalSymlinks(filePath)
+			if err != nil {
+				return err
+			}
+			realFileInfo, err := os.Lstat(realPath)
+			if err != nil {
+				return err
+			}
+
 			filePath = strings.TrimPrefix(filePath, "Web/")
 
 			// Flow stores files in /..../<resourceId>/<filename>.jpg; so we extract the resourceId here.
 			resourceId := path.Base(path.Dir(filePath))
 
+			totalSizeBytes += uint64(realFileInfo.Size())
 			resourceFilesIndex["Resources/"+resourceId[0:1]+"/"+resourceId[1:2]+"/"+resourceId[2:3]+"/"+resourceId[3:4]+"/"+resourceId] = dto.PublicFilesIndexEntry{
-				SizeBytes: uint64(info.Size()),
+				SizeBytes: int64(realFileInfo.Size()),
+				MTime:     realFileInfo.ModTime().Unix(),
 				PublicUri: "<BASE>/" + filePath,
 			}
 			return nil
@@ -174,6 +187,7 @@ func (f flowServe) extractResources(transferSession *serve.TransferSession) {
 		Type: dto.TYPE_PUBLICFILES,
 		PublicFiles: &dto.FileSetPublicFiles{
 			IndexFileName: indexFileName,
+			SizeBytes:     totalSizeBytes,
 		},
 	}
 	transferSession.Meta.FileSets = append(transferSession.Meta.FileSets, fileSet)

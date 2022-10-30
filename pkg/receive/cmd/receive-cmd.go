@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/pterm/pterm"
 	"github.com/repeale/fp-go"
@@ -11,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 var interactive bool
@@ -110,14 +112,40 @@ func downloadPublicFiles(receiveSession *receive.ReceiveSession, fileSet *dto.Fi
 	}
 
 	for fileName, fileDefinition := range publicFilesIndex {
-		// TODO: Check for changes
+		// create parent directory
 		err = os.MkdirAll(filepath.Dir(fileName), 0755)
 		if err != nil {
 			return fmt.Errorf("error creating directory %s: %w", filepath.Dir(fileName), err)
 		}
+
+		// Check for changes of the files (based on size and modification times)
+		fileStat, err := receiveSession.StatInWorkDir(fileName)
+		if err == nil {
+			if fileStat.Size() == fileDefinition.SizeBytes && fileStat.ModTime().Unix() == fileDefinition.MTime {
+				// file exists; and exists with same size and modification time. We can skip the download.
+				pterm.Debug.Printfln("Ignoring file %s, because it exists already with same size and modification timestamp", fileName)
+				continue
+			} else if fileStat.Size() != fileDefinition.SizeBytes {
+				pterm.Debug.Printfln("Re-downloading file %s, because file sizes do not match: %d (local) != %d (remote)", fileName, fileStat.Size(), fileDefinition.SizeBytes)
+			} else if fileStat.ModTime().Unix() != fileDefinition.MTime {
+				pterm.Debug.Printfln("Re-downloading file %s, because file modification times do not match: %d (local) != %d (remote)", fileName, fileStat.ModTime().Unix(), fileDefinition.MTime)
+			}
+		} else if !errors.Is(err, os.ErrNotExist) {
+			// some other error except "file does not exist" => bubble up
+			return fmt.Errorf("error calling stat on %s: %w", fileName, err)
+		}
+
+		// download file.
 		err = receiveSession.DumpFileWithProgressBar(strings.ReplaceAll(fileDefinition.PublicUri, "<BASE>", ".."), fileName)
 		if err != nil {
 			return fmt.Errorf("error on downloading %s to %s: %w", fileDefinition.PublicUri, fileName, err)
+		}
+		// set the desired modification time to the server's modification time (for change tracking)
+		desiredMtime := time.Unix(fileDefinition.MTime, 0)
+		pterm.Debug.Printfln("Setting mtime for %s to %d", fileName, fileDefinition.MTime)
+		err = receiveSession.SetMTimeInWorkDir(fileName, desiredMtime)
+		if err != nil {
+			return err
 		}
 	}
 

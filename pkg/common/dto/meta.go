@@ -90,6 +90,7 @@ type FileSetPublicFiles struct {
 type PublicFilesIndex map[string]PublicFilesIndexEntry
 
 type PublicFilesIndexEntry struct {
-	SizeBytes uint64 `json:"sizeBytes"`
+	SizeBytes int64  `json:"sizeBytes"`
+	MTime     int64  `json:"mTime"`
 	PublicUri string `json:"publicUri"`
 }
