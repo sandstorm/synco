@@ -125,4 +125,5 @@ brews:
     # Default is empty.
     description: "Sandstorm Synco"
     install: |
+      libexec.install Dir["*"]
       bin.write_exec_script libexec/"synco"

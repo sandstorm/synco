@@ -49,26 +49,18 @@
 
 ----
 
-This is a template CLI application, which can be used as a boilerplate for awesome CLI tools written in Go.
-This template prints the date or time to the terminal.
-
 ## Installation
 
 Run the following command in a terminal and you're ready to go!
 
-**Windows**
-```powershell
-iwr instl.sh/sandstorm/synco/windows | iex
-```
-
 **macOS**
 ```bash
-curl -sSL instl.sh/sandstorm/synco/macos | bash
+brew install sandstorm/tap/synco
 ```
 
 **Linux**
 ```bash
-curl -sSL instl.sh/sandstorm/synco/linux | bash
+curl https://sandstorm.github.io/synco/serve | sh -s -
 ```
 
 
