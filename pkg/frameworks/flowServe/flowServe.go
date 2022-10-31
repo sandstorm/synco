@@ -14,6 +14,7 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -45,13 +46,13 @@ type flowPersistenceBackendOptions struct {
 	User     string `yaml:"user"`
 	Password string `yaml:"password"`
 	Charset  string `yaml:"charset"`
-	Port     int    `yaml:"port"`
+	Port     string `yaml:"port"`
 }
 
 func (fp *flowPersistenceBackendOptions) ToDbCredentials() *common.DbCredentials {
 	port := 3306
-	if fp.Port != 0 {
-		port = fp.Port
+	if len(fp.Port) != 0 {
+		port, _ = strconv.Atoi(fp.Port)
 	}
 	return &common.DbCredentials{
 		Host:     fp.Host,
