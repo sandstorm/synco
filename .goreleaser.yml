@@ -87,7 +87,7 @@ archives:
     format: binary
     builds:
       - synco-lite
-    name_template: '{{ .Binary }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}'
+    name_template: 'synco-lite_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}'
     replacements:
       darwin: Darwin
       linux: Linux
