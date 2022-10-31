@@ -1,0 +1,16 @@
+#!/usr/bin/env sh
+
+BIN_TARGET="synco-lite"
+
+echo "This downloads and executes '$BIN_TARGET serve $@' in the current directory."
+
+if [ ! -f "$BIN_TARGET" ]; then
+  OS_TYPE=$(uname -s)
+  ARCH_TYPE=$(uname -m)
+
+  DOWNLOAD_LINK="https://github.com/sandstorm/synco/releases/latest/download/synco-lite_${OS_TYPE}_${ARCH_TYPE}.tar.gz"
+  curl -o $BIN_TARGET $DOWNLOAD_LINK
+  chmod +x $BIN_TARGET
+fi
+
+$BIN_TARGET serve $@
