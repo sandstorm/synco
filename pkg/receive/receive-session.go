@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 )
 
@@ -41,7 +42,8 @@ func newHttpClient() *http.Client {
 
 	client := http.Client{
 		Transport: &transport,
-		Timeout:   4 * time.Second,
+		// must be a long timeout, otherwise big files cannnot be downloaded.
+		Timeout: 3600 * time.Second,
 	}
 
 	return &client
@@ -113,10 +115,16 @@ func (rs *ReceiveSession) FetchAndDecryptFileWithProgressBar(fileName string) ([
 	pipeReader, pipeWriter := io.Pipe()
 
 	// we need to call io.Copy in a goroutine; in order to not block forever.
-	// NOTE: Not sure how to catch the error here :)
+	// NOTE: to catch the error which might happen inside here,
+	// we use a WaitGroup to wait for goroutine termination at the end of the method; and additionally
+	// check the error then.
+	var wg sync.WaitGroup
+	var ioCopyErr error
+	wg.Add(1)
 	go func() {
-		_, _ = io.Copy(pipeWriter, io.TeeReader(resp.Body, downloadByteCounter))
+		_, ioCopyErr = io.Copy(pipeWriter, io.TeeReader(resp.Body, downloadByteCounter))
 		pipeWriter.Close()
+		wg.Done()
 	}()
 
 	if err != nil {
@@ -129,9 +137,13 @@ func (rs *ReceiveSession) FetchAndDecryptFileWithProgressBar(fileName string) ([
 	}
 	buf := new(bytes.Buffer)
 	_, err = buf.ReadFrom(decryptedReader)
+
+	// Now, we can check for ioCopyErr from the goroutine above
+	wg.Wait()
 	if err != nil {
-		return nil, fmt.Errorf("Error decrypting file from server (1): %w", err)
+		return nil, fmt.Errorf("Error decrypting file from server (1): %w - ioCopy err: %s", err, ioCopyErr)
 	}
+
 	return buf.Bytes(), nil
 }
 
@@ -158,10 +170,16 @@ func (rs *ReceiveSession) FetchFileWithProgressBar(fileName string, progress *pt
 	pipeReader, pipeWriter := io.Pipe()
 
 	// we need to call io.Copy in a goroutine; in order to not block forever.
-	// NOTE: Not sure how to catch the error here :)
+	// NOTE: to catch the error which might happen inside here,
+	// we use a WaitGroup to wait for goroutine termination at the end of the method; and additionally
+	// check the error then.
+	var wg sync.WaitGroup
+	var ioCopyErr error
+	wg.Add(1)
 	go func() {
-		_, _ = io.Copy(pipeWriter, io.TeeReader(resp.Body, downloadByteCounter))
+		_, ioCopyErr = io.Copy(pipeWriter, io.TeeReader(resp.Body, downloadByteCounter))
 		pipeWriter.Close()
+		wg.Done()
 	}()
 
 	if err != nil {
@@ -173,6 +191,13 @@ func (rs *ReceiveSession) FetchFileWithProgressBar(fileName string, progress *pt
 	if err != nil {
 		return nil, fmt.Errorf("Error reading file from server (1): %w", err)
 	}
+
+	// Now, we can check for ioCopyErr from the goroutine above
+	wg.Wait()
+	if ioCopyErr != nil {
+		return nil, fmt.Errorf("Error reading file from server (io.copy): %w", ioCopyErr)
+	}
+
 	return buf.Bytes(), nil
 }
 
