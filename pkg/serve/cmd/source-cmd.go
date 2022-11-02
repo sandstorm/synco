@@ -23,6 +23,7 @@ and figures out what to extract.`,
 	// Uncomment the following lines if your bare application has an action associated with it:
 	Run: func(cmd *cobra.Command, args []string) {
 		sigs := make(chan os.Signal, 1)
+		done := make(chan bool, 1)
 		signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 
 		var err error
@@ -57,6 +58,9 @@ and figures out what to extract.`,
 
 				framework.Serve(transferSession)
 				pterm.Debug.Printfln("Waiting for ctrl-c")
+
+				// done will never be fired; we'll wait forever here.
+				<-done
 				return
 			}
 		}
