@@ -1,11 +1,5 @@
 - [Getting started](README.md)
-  - [Features](README.md#features)
-  - [Installation](README.md#installation)
-  - [Usage](README.md#usage)
 - [Architecture](architecture.md)
-- 
-    
-
 ---
 
 - [Contributing](CONTRIBUTING.md)

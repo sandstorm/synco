@@ -29,8 +29,9 @@
 * [Features](#features)
 * [Installation](#installation)
 * [Usage](#usage)
+* [License](#license)
 <!-- TOC -->
-* [Architecture]()
+* [Architecture](https://sandstorm.github.io/synco/#/architecture)
 
 # Features
 
@@ -105,4 +106,6 @@ To download the dump, **on your local machine**, you run the CLI call printed ou
 >
 > `synco` is the tool which contains all features, but comes with a bigger package size.
 
+# License
 
+This project is licensed under the MIT license.
