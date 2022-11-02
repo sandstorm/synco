@@ -23,7 +23,6 @@ and figures out what to extract.`,
 	// Uncomment the following lines if your bare application has an action associated with it:
 	Run: func(cmd *cobra.Command, args []string) {
 		sigs := make(chan os.Signal, 1)
-		done := make(chan bool, 1)
 		signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 
 		var err error
@@ -51,16 +50,13 @@ and figures out what to extract.`,
 			pterm.Debug.Printfln("Checking for %s framework", framework.Name())
 			if framework.Detect() {
 				pterm.Info.Printfln("Found %s framework.", framework.Name())
-				transferSession, err := serve.NewSession(identifier, password, listen, sigs, done)
+				transferSession, err := serve.NewSession(identifier, password, listen, sigs)
 				if err != nil {
 					pterm.Fatal.Printfln("Error creating transfer session: %s", err)
 				}
 
 				framework.Serve(transferSession)
 				pterm.Debug.Printfln("Waiting for ctrl-c")
-				<-done
-				pterm.Debug.Printfln("Exiting")
-				os.Exit(0)
 				return
 			}
 		}

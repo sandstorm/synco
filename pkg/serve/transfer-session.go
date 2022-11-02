@@ -26,7 +26,6 @@ type TransferSession struct {
 
 	// Termination signals
 	sigs chan os.Signal
-	done chan bool
 }
 
 func (ts *TransferSession) WithFrameworkAndWebDirectory(frameworkName string, webDirectory string) error {
@@ -59,7 +58,7 @@ func (ts *TransferSession) WithFrameworkAndWebDirectory(frameworkName string, we
 	return nil
 }
 
-func NewSession(identifier string, password string, listen string, sigs chan os.Signal, done chan bool) (*TransferSession, error) {
+func NewSession(identifier string, password string, listen string, sigs chan os.Signal) (*TransferSession, error) {
 	if len(password) == 0 {
 		return nil, fmt.Errorf("empty password")
 	}
@@ -75,19 +74,19 @@ func NewSession(identifier string, password string, listen string, sigs chan os.
 		Meta: &dto.Meta{
 			State: dto.STATE_CREATED,
 		},
-		Identifier: identifier,
+		Identifier: "ts-" + identifier,
 		Password:   password,
 		recipient:  recipient,
 		listen:     listen,
 		sigs:       sigs,
-		done:       done,
 	}
 
 	go func() {
 		<-sigs
 		pterm.Info.Printfln("Cleaning up...")
 		_ = os.RemoveAll(*m.workDir)
-		done <- true
+		pterm.Info.Printfln("Cleanup Completed.")
+		os.Exit(0)
 	}()
 
 	return m, nil
