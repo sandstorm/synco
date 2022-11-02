@@ -46,6 +46,11 @@ func newHttpClient() *http.Client {
 		Transport: &transport,
 		// must be a long timeout, otherwise big files cannnot be downloaded.
 		Timeout: 3600 * time.Second,
+
+		// we do not want to follow redirects, so that f.e. we do not follow a HTTP to HTTPS redirect.
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
 	}
 
 	return &client
@@ -72,26 +77,29 @@ func NewSession(identifier string, password string) (*ReceiveSession, error) {
 
 var ErrMetaFileNotFound = errors.New("file " + dto.FILENAME_META + " not found")
 
-func (rs *ReceiveSession) FetchMeta() (*dto.Meta, error) {
-	urlToLoad, err := url.JoinPath(*rs.baseUrl, rs.identifier, dto.FILENAME_META)
-	pterm.Debug.Printfln("Trying to download %s", urlToLoad)
+func (rs *ReceiveSession) DoesMetaFileExistOnServer() error {
+	resp, err := rs.loadMetaFile()
 	if err != nil {
-		return nil, err
+		return err
 	}
+	// prevent resource leaks
+	defer func() { _ = resp.Body.Close() }()
 
-	resp, err := rs.httpClient.Get(urlToLoad)
+	// meta file exists, no error
+	return nil
+}
+
+func (rs *ReceiveSession) FetchMeta() (*dto.Meta, error) {
+	resp, err := rs.loadMetaFile()
 	if err != nil {
 		return nil, err
-	}
-	if resp.StatusCode != 200 {
-		return nil, ErrMetaFileNotFound
 	}
 	// prevent resource leaks
 	defer func() { _ = resp.Body.Close() }()
 
 	decryptedReader, err := age.Decrypt(resp.Body, rs.identity)
 	if err != nil {
-		return nil, fmt.Errorf("Error decrypting file from server (1): %w", err)
+		return nil, fmt.Errorf("error decrypting file from server - most likely, the encryption key was wrong: %w", err)
 	}
 	decoder := json.NewDecoder(decryptedReader)
 	meta := &dto.Meta{}
@@ -103,8 +111,28 @@ func (rs *ReceiveSession) FetchMeta() (*dto.Meta, error) {
 	return meta, nil
 }
 
+func (rs *ReceiveSession) loadMetaFile() (*http.Response, error) {
+	urlToLoad, err := url.JoinPath(*rs.baseUrl, rs.identifier, dto.FILENAME_META)
+	pterm.Debug.Printfln("Trying to download %s", urlToLoad)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := rs.httpClient.Get(urlToLoad)
+	if err != nil {
+		pterm.Debug.Printfln("error trying to load %s: %s", urlToLoad, err)
+		return nil, ErrMetaFileNotFound
+	}
+	if resp.StatusCode != 200 {
+		pterm.Debug.Printfln("error trying to load %s - wrong status code: %d", urlToLoad, resp.StatusCode)
+		// prevent resource leaks
+		_ = resp.Body.Close()
+		return nil, ErrMetaFileNotFound
+	}
+	return resp, nil
+}
 func (rs *ReceiveSession) FetchAndDecryptFileWithProgressBar(fileName string) ([]byte, error) {
-	urlToLoad, err := url.JoinPath(*rs.baseUrl, fileName)
+	urlToLoad, err := url.JoinPath(*rs.baseUrl, rs.identifier, fileName)
 	pterm.Debug.Printfln("Trying to download %s", urlToLoad)
 	if err != nil {
 		return nil, err
@@ -114,6 +142,13 @@ func (rs *ReceiveSession) FetchAndDecryptFileWithProgressBar(fileName string) ([
 	if err != nil {
 		return nil, err
 	}
+	if resp.StatusCode != 200 {
+		pterm.Debug.Printfln("error trying to load %s - wrong status code: %d", urlToLoad, resp.StatusCode)
+		// prevent resource leaks
+		_ = resp.Body.Close()
+		return nil, ErrMetaFileNotFound
+	}
+
 	// prevent resource leaks
 	defer func() { _ = resp.Body.Close() }()
 
@@ -156,7 +191,7 @@ func (rs *ReceiveSession) FetchAndDecryptFileWithProgressBar(fileName string) ([
 }
 
 func (rs *ReceiveSession) FetchFileWithProgressBar(fileName string, progress *pterm.ProgressbarPrinter) ([]byte, error) {
-	urlToLoad, err := url.JoinPath(*rs.baseUrl, fileName)
+	urlToLoad, err := url.JoinPath(*rs.baseUrl, rs.identifier, fileName)
 	pterm.Debug.Printfln("Trying to download %s", urlToLoad)
 	if err != nil {
 		return nil, err
@@ -166,6 +201,13 @@ func (rs *ReceiveSession) FetchFileWithProgressBar(fileName string, progress *pt
 	if err != nil {
 		return nil, err
 	}
+	if resp.StatusCode != 200 {
+		pterm.Debug.Printfln("error trying to load %s - wrong status code: %d", urlToLoad, resp.StatusCode)
+		// prevent resource leaks
+		_ = resp.Body.Close()
+		return nil, ErrMetaFileNotFound
+	}
+
 	// prevent resource leaks
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != 200 {

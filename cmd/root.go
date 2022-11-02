@@ -5,7 +5,6 @@ import (
 	"github.com/sandstorm/synco/pkg/serve/cmd"
 	"github.com/spf13/cobra"
 	"os"
-	"os/signal"
 )
 
 // !! NOTE: we are not allowed to move this file, as this is needed by the build system at https://github.com/pterm/tag-action/blob/main/entrypoint.sh
@@ -43,15 +42,6 @@ synco receive http://your-server/abcde password-from-server`,
 func Execute() {
 	rootCmd.AddCommand(cmd.ServeCmd)
 	rootCmd.AddCommand(cmd2.ReceiveCmd)
-
-	// Fetch user interrupt
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt)
-	go func() {
-		<-c
-		pterm.Warning.Println("user interrupt")
-		os.Exit(0)
-	}()
 
 	// Execute cobra
 	if err := rootCmd.Execute(); err != nil {

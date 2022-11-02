@@ -26,22 +26,26 @@ var ReceiveCmd = &cobra.Command{
 	Long:    `...`,
 	Args:    cobra.ExactArgs(2),
 	Example: `synco receive [identifier] [password]`,
-	// Uncomment the following lines if your bare application has an action associated with it:
 	Run: func(cmd *cobra.Command, args []string) {
 		identifier := args[0]
 		password := args[1]
 
 		receiveSession, err := receive.NewSession(identifier, password)
-		detectBaseUrlAndUpdateReceiveSession(receiveSession)
-
-		pterm.PrintOnErrorf("Error initializing receive session: %e", err)
+		pterm.PrintOnErrorf("Error initializing receive session: %s", err)
 		if err != nil {
+			return
+		}
+
+		err = detectBaseUrlAndUpdateReceiveSession(receiveSession)
+		if err != nil {
+			pterm.Error.Printfln("Error detecting base URL: %s", err)
 			return
 		}
 
 		meta, err := receiveSession.FetchMeta()
 		if err != nil {
-			pterm.Fatal.Printfln("Metadata could not be fetched: %s", err)
+			pterm.Error.Printfln("Metadata could not be fetched: %s", err)
+			return
 		}
 		pterm.Success.Printfln("Valid Decryption Key")
 		pterm.Info.Printfln("Framework on server: %s", meta.FrameworkName)
@@ -115,10 +119,10 @@ func detectBaseUrlAndUpdateReceiveSession(rs *receive.ReceiveSession) error {
 	for _, host := range syncoConfig.Hosts {
 		pterm.Debug.Printfln("Trying to detect the base URL: %s", host.BaseUrl)
 		rs.BaseUrl(host.BaseUrl)
-		_, err := rs.FetchMeta()
+		err = rs.DoesMetaFileExistOnServer()
 		if err == nil {
 			// we found the meta file; so we are done.
-			pterm.Debug.Printfln("Found correct base URL at %s", host.BaseUrl)
+			pterm.Success.Printfln("Found correct base URL at %s (based on %s)", host.BaseUrl, config.SyncoYamlFile)
 			// NOTE: the receiveSession is already updated; so we do not need to update anything.
 			return nil
 		}
@@ -128,6 +132,8 @@ func detectBaseUrlAndUpdateReceiveSession(rs *receive.ReceiveSession) error {
 		}
 		// receive.ErrMetaFileNotFound -> we did not find a meta file - so we try with the next URL in the loop.
 	}
+
+	pterm.Info.Printfln("Please specify the base URL of the production server (f.e. github.com).")
 
 	//////////////////// MANUAL ENTRY
 	for true {
@@ -144,14 +150,14 @@ func detectBaseUrlAndUpdateReceiveSession(rs *receive.ReceiveSession) error {
 			"http://www." + baseUrlCandidate,
 		}
 		for _, candidate := range baseUrlCandidates {
-			_, err = url.Parse(candidate)
+			_, err = url.ParseRequestURI(candidate)
 			if err != nil {
 				pterm.Debug.Printfln("Skipping candidate host %s because it is not valid.", candidate)
 				continue
 			}
 
 			rs.BaseUrl(candidate)
-			_, err = rs.FetchMeta()
+			err = rs.DoesMetaFileExistOnServer()
 			if err == nil {
 				// we found the meta file; so we are done.
 				pterm.Success.Printfln("Found correct base URL at %s.", candidate)

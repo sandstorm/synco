@@ -65,7 +65,7 @@ Features:
   * currently supported databases:
     * **MySQL**
     * (Postgres support planned)
-* (planned) **auto-cleanup**: remove dumps when tool is stopped
+* **auto-cleanup**: remove dumps when tool is stopped
 
 # Installation
 
@@ -83,8 +83,8 @@ On your production server, run the following command **in the work directory of 
 ```sh
 curl https://sandstorm.github.io/synco/serve | sh -s -
 
-# for verbose mode, run with "-v" at the end.
-curl https://sandstorm.github.io/synco/serve | sh -s - -v
+# for verbose mode, run with "--debug" at the end.
+curl https://sandstorm.github.io/synco/serve | sh -s - --debug
 ```
 
 This will (on the prod server):
