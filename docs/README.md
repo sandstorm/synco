@@ -1,5 +1,5 @@
 <h1 align="center">synco</h1>
-<p align="center">an Database and File Dump Downloader for synchronizing production, staging, and local development</p>
+<p align="center">an intelligent Database and File Dump Downloader for synchronizing production, staging, and local development</p>
 
 <p align="center">
 
@@ -7,33 +7,9 @@
 <img src="https://img.shields.io/github/v/release/sandstorm/synco?style=flat-square" alt="Latest Release">
 </a>
 
-<a style="text-decoration: none" href="https://github.com/sandstorm/synco/releases">
-<img src="https://img.shields.io/github/downloads/sandstorm/synco/total.svg?style=flat-square" alt="Downloads">
-</a>
-
-<a style="text-decoration: none" href="https://github.com/sandstorm/synco/stargazers">
-<img src="https://img.shields.io/github/stars/sandstorm/synco.svg?style=flat-square" alt="Stars">
-</a>
-
-<a style="text-decoration: none" href="https://github.com/sandstorm/synco/fork">
-<img src="https://img.shields.io/github/forks/sandstorm/synco.svg?style=flat-square" alt="Forks">
-</a>
-
-<a style="text-decoration: none" href="https://github.com/sandstorm/synco/issues">
-<img src="https://img.shields.io/github/issues/sandstorm/synco.svg?style=flat-square" alt="Issues">
-</a>
-
 <a style="text-decoration: none" href="https://opensource.org/licenses/MIT">
 <img src="https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square" alt="License: MIT">
 </a>
-
-<br/>
-
-<a style="text-decoration: none" href="https://github.com/sandstorm/synco/releases">
-<img src="https://img.shields.io/badge/platform-windows%20%7C%20macos%20%7C%20linux-informational?style=for-the-badge" alt="Downloads">
-</a>
-
-<br/>
 
 </p>
 
@@ -49,157 +25,84 @@
 
 ----
 
-This is a template CLI application, which can be used as a boilerplate for awesome CLI tools written in Go.
-This template prints the date or time to the terminal.
+<!-- TOC -->
+* [Features](#features)
+* [Installation](#installation)
+* [Usage](#usage)
+<!-- TOC -->
+* [Architecture]()
 
-## Installation
+# Features
 
-Run the following command in a terminal and you're ready to go!
-
-**Windows**
-```powershell
-iwr instl.sh/sandstorm/synco/windows | iex
+```text
+┌─────────────────────────────┐                      ┌─────────────────────────────┐
+│         synco serve         │                      │        synco receive        │
+│                             │                      │                             │
+│      detect framework       │─────────────────────▶│ downloads and decrypt dump  │
+│   produce encrypted dump    │                      │  (planned) import to local  │
+│                             │                      │          instance           │
+└─────────────────────────────┘                      └─────────────────────────────┘
+   on your production server                             on your local instance     
 ```
+
+Features:
+
+* **Portable** written in Golang with no external dependencies. Install by downloading a single binary.
+* **Transfer** files and database dumps from your production system
+* **Re-use** the existing HTTP server which normally exists in a web-project (by placing the dumps in the public web folder
+  of the project)
+* **encrypts all dumps**; so nothing is transferred unencrypted. No unencrypted files temporary files are written.
+* **Auto-Detects frameworks**, so it knows how to connect to the database. Supported right now:
+  * **Neos / Flow Applications**
+    * with local Resources
+    * (planned) with resources stored in S3
+  * (later, other frameworks will be added here)
+* **multiple file-sets** supported. This means you can choose to only sync your database, but not your binary resources/assets.
+* **Speed Optimized**: publicly available binary assets are not zipped extra; but the already-public files are simply downloaded.
+  Resources which already exist locally and have the same file size and modification date are never re-downloaded.
+* **no extra SQL client needed**: We package a custom implementation of `mysqldump` into the binary.
+  * currently supported databases:
+    * **MySQL**
+    * (Postgres support planned)
+* (planned) **auto-cleanup**: remove dumps when tool is stopped
+
+# Installation
+
+Run the following command on your developer machine, and this will download `synco` and place it on your `PATH`:
 
 **macOS**
 ```bash
-curl -sSL instl.sh/sandstorm/synco/macos | bash
+brew install sandstorm/tap/synco
 ```
 
-**Linux**
-```bash
-curl -sSL instl.sh/sandstorm/synco/linux | bash
+# Usage
+
+On your production server, run the following command **in the work directory of your application**:
+
+```sh
+curl https://sandstorm.github.io/synco/serve | sh -s -
+
+# for verbose mode, run with "-v" at the end.
+curl https://sandstorm.github.io/synco/serve | sh -s - -v
 ```
 
+This will (on the prod server):
 
-## The Problem We want to Solve: Working locally and on staging with as-live-as-possible content
+- Download `synco-lite` (in the version needed for your environment) and start it.
+- Detect which framework is in use
+- dump and encrypt the database by using the DB credentials of your application
+- build an encrypted index of all public binary Resources of your system
+- Show you a CLI call like `synco download [token] [password]`.
 
-In our projects, we often have the need to work with production data locally, to debug a certain issue, or further develop new features.
+To download the dump, **on your local machine**, you run the CLI call printed out; and follow the wizard:
+- You need to specify the host server (as synco cannot know under what URL the production system is reachable).
+- You can choose what file-sets to download.
 
-In our agency, we use lots of different technologies and infrastructures. Thus, we want a solution with the following properties:
+> **What is the difference between synco and synco-lite?**
+>
+> `synco-lite` is a binary-size-optimized package of Synco which only contains the code to run `synco serve`.
+> This makes Synco more quick to run on the server side, where the tool is downloaded at first use.
+>
+> `synco` is the tool which contains all features, but comes with a bigger package size.
 
-* **Framework Agnostic:** The approach must work with different programming frameworks and even different programming languages. It should, however, have defaults out of the box to work with certain frameworks.
-* **Infrastructure Agnostic:** Sometimes, we host staging or prod instances in Kubernetes. Sometimes on Docker. Sometimes on Bare Metal. Most often it's Linux, but sometimes it's running on BSD as well.
-* **Self Contained:** We do not want to make any assumptions about available programs on the host.
-* **Easy to learn and use:** It should ideally be plug and play.
-* **As Little Data Transfer As Possible**\: Because we sometimes have big content dumps which we need to transfer, we want to transfer as little data as possible. This is not so relevant between servers, but is hugely relevants for development instances (because there, Bandwidth is way more limited).
-* **Secure over the wire**\: We transfer the data over the internet; thus we don't want to trust people there. We need to encrypt all data in-flight.
 
-**Assumptions** we can take for granted when building our solution
-
-* We assume that we have access to an interactive shell for the **source** instance where we want to copy from. This could be via SSH, via `kubectl` or via `docker exec` (or a combination thereof). We call this a **trusted control channel**.
-* We optimize for the **interactive case**, and not for the batch machine-to-machine case.
-
-**Prior Art**
-
-* Go CLI
-    * Wizard: https://github.com/pterm/pterm
-    * Basic CLI API: https://cobra.dev/
-* Hot Reload: https://github.com/cosmtrek/air
-* Database:
-  * https://github.com/JamesStewy/go-mysqldump
-  * fork with postgres support: https://github.com/conneqtech/go-mysqldump (adapted to own needs)
-
-## Solution Concept
-
-We transfer always from source to destination:
-
-* the source is usually located on the production server.
-* The destination is usually the local system where you develop.
-
-While the source is usually exposed to the internet (it is a server), the destination can be inside a private network. This means all connections need to be initiated from the destination.
-
-Conversely,  the source server usually does NOT have synco installed; while on the target you might have it installed (because you use it locally). Because we need to install synco on the source server in an ad-hoc manner, we create an extra synco-source binary which has a way smaller file size than the general-purpose synco tool.
-
-For now we assume the source server is reachable via HTTP from the destination; and we can use this for transferring files. In the future, we might have other ways of transfer. This means for confidentiality, we need to encrypt all files before making them available on a public HTTP endpoint.
-
-The destination server will only fetch data from the source; and never the other way round. It basically “pulls the data down” from the source server.
-
-### File transfer method
-
-on the source server (e.g. the production system), the user needs to log in, and then invoke the synco-source executable. This does:
-
-* install synco-source via a shell script
-* Detect which framework is used. E.g. for Flow/Neos or Symfony, synco then knows how to create a database dump (e.g. for MySQL, using go-mysqldump or pingcap dumpling; and for Postgres some pgx based solution??)
-* Publish a metadata file and encrypt it which shows the current status.
-* Create the database dump and encrypt it.
-* Create a file mapping for data/persistent in flow - as we do not need to re-compress static assets which are available online.
-* Generate the target synco command which contains the private key, the server, and the sync session.
-
-The user then on the destination (usually his local machine) runs synco download, as shown by the wizard above, with all arguments.
-
-* then the destination synco client downloads the metadata (waiting for ready state if needed); downloads the files (only if local files are not existing / older); installs them into the local instance.
-* At the end a message is printed that the synco-source instance should be terminated.
-
-On the server, when terminating synco-source (kill hook), we remove all published web files.
-
-Streamlined workflow
-
-Based on the workflow above, we can implement an even more streamlined “synco” workflow which is run on the destination (=the local machine); which connects to the source via some out of band mechanism like kubectl or SSH; and orchestrates the process above.
-
-## Development
-
-* synco
-    * generic tool, usually installed via home brew or otherwise.
-* synco-lite
-    * only the "serve" command parts; in order to shrink the tool as small as possible for the production server download.
-
-### Sync Format
-
-Goals:
-- Incremental Syncing (Don't download files you already have)
-- Encrypted / non Encrypted Syncing (depending if the source files are already public or not)
-- Partial Syncing (only download what you want (no resources if you do not want them))
-
-```
-meta.json
-{
-  state: "Created|Initializing|Ready",
-  frameworkName: "Neos"
-  files: [
-    {
-      name: "db-dump",
-      type: "single",
-      single: {
-        fileName: "db-dump.sql.enc"
-        sizeBytes: 500000
-      }
-    },
-    {
-      name: "persistent",
-      type: "publicFiles",
-      publicFiles: {
-        indexFileName: "persistent-index.json.enc",
-        sizeBytes: 500000
-      }
-    }
-  ]
-}
-
-persistent-index.json:
-
-{
-  "Foo/Bar/bla": {
-    "mtime": 123456789,
-    "sizeBytes": 500000,
-    "publicUri": "<BASE>/_Web/Resources/....." 
-  }
-}
-```
-
-## Previous Idea Iterations
-
-### transfer via WebRTC
-
-* https://github.com/Antonito/gfile - gfile is a WebRTC based file exchange software.
-* Too complex.
-
-### Transfer via Tailscale
-
-* Embedded Tailscale
-    * https://github.com/tailscale/tailscale/blob/v1.32.0/tsnet/example/tshello/tshello.go
-* needs infrastructure
-
-## ideas
-
-* three-way (control server !== target)
