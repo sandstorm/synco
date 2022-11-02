@@ -78,7 +78,17 @@ func (f flowServe) Serve(transferSession *serve.TransferSession) {
 	if err != nil {
 		pterm.Fatal.Printfln("could not update state: %s", err)
 	}
-	pterm.Success.Printfln("Ready: synco receive http://HOST/%s %s", transferSession.Identifier, transferSession.Password)
+	pterm.Success.Printfln("")
+	pterm.Success.Printfln("=================================================================================")
+	pterm.Success.Printfln("")
+	pterm.Success.Printfln("READY: Execute the following command locally to download the dump:")
+	pterm.Success.Printfln("")
+	pterm.Success.Printfln("          synco receive %s %s", transferSession.Identifier, transferSession.Password)
+	pterm.Success.Printfln("")
+	pterm.Success.Printfln("When you are finished, stop the server by pressing Ctrl-C.")
+	pterm.Success.Printfln("")
+	pterm.Success.Printfln("=================================================================================")
+	pterm.Success.Printfln("")
 }
 
 func (f flowServe) extractDatabaseCredentialsFromFlow() flowPersistenceBackendOptions {

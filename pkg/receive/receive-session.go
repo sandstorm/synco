@@ -3,6 +3,7 @@ package receive
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"filippo.io/age"
 	"fmt"
 	"github.com/pterm/pterm"
@@ -20,7 +21,8 @@ import (
 type State string
 
 type ReceiveSession struct {
-	baseUrl    string
+	baseUrl    *string
+	identifier string
 	workDir    *string
 	password   string
 	identity   *age.ScryptIdentity
@@ -49,7 +51,7 @@ func newHttpClient() *http.Client {
 	return &client
 }
 
-func NewSession(baseUrl string, password string) (*ReceiveSession, error) {
+func NewSession(identifier string, password string) (*ReceiveSession, error) {
 	workDir := "dump"
 	err := os.MkdirAll(workDir, 0755)
 	identity, err := age.NewScryptIdentity(password)
@@ -57,7 +59,8 @@ func NewSession(baseUrl string, password string) (*ReceiveSession, error) {
 		return nil, err
 	}
 	rs := &ReceiveSession{
-		baseUrl:    baseUrl,
+		baseUrl:    nil,
+		identifier: identifier,
 		workDir:    &workDir,
 		password:   password,
 		identity:   identity,
@@ -67,8 +70,10 @@ func NewSession(baseUrl string, password string) (*ReceiveSession, error) {
 	return rs, nil
 }
 
+var ErrMetaFileNotFound = errors.New("file " + dto.FILENAME_META + " not found")
+
 func (rs *ReceiveSession) FetchMeta() (*dto.Meta, error) {
-	urlToLoad, err := url.JoinPath(rs.baseUrl, dto.FILENAME_META)
+	urlToLoad, err := url.JoinPath(*rs.baseUrl, rs.identifier, dto.FILENAME_META)
 	pterm.Debug.Printfln("Trying to download %s", urlToLoad)
 	if err != nil {
 		return nil, err
@@ -77,6 +82,9 @@ func (rs *ReceiveSession) FetchMeta() (*dto.Meta, error) {
 	resp, err := rs.httpClient.Get(urlToLoad)
 	if err != nil {
 		return nil, err
+	}
+	if resp.StatusCode != 200 {
+		return nil, ErrMetaFileNotFound
 	}
 	// prevent resource leaks
 	defer func() { _ = resp.Body.Close() }()
@@ -96,7 +104,7 @@ func (rs *ReceiveSession) FetchMeta() (*dto.Meta, error) {
 }
 
 func (rs *ReceiveSession) FetchAndDecryptFileWithProgressBar(fileName string) ([]byte, error) {
-	urlToLoad, err := url.JoinPath(rs.baseUrl, fileName)
+	urlToLoad, err := url.JoinPath(*rs.baseUrl, fileName)
 	pterm.Debug.Printfln("Trying to download %s", urlToLoad)
 	if err != nil {
 		return nil, err
@@ -123,7 +131,7 @@ func (rs *ReceiveSession) FetchAndDecryptFileWithProgressBar(fileName string) ([
 	wg.Add(1)
 	go func() {
 		_, ioCopyErr = io.Copy(pipeWriter, io.TeeReader(resp.Body, downloadByteCounter))
-		pipeWriter.Close()
+		_ = pipeWriter.Close()
 		wg.Done()
 	}()
 
@@ -148,7 +156,7 @@ func (rs *ReceiveSession) FetchAndDecryptFileWithProgressBar(fileName string) ([
 }
 
 func (rs *ReceiveSession) FetchFileWithProgressBar(fileName string, progress *pterm.ProgressbarPrinter) ([]byte, error) {
-	urlToLoad, err := url.JoinPath(rs.baseUrl, fileName)
+	urlToLoad, err := url.JoinPath(*rs.baseUrl, fileName)
 	pterm.Debug.Printfln("Trying to download %s", urlToLoad)
 	if err != nil {
 		return nil, err
@@ -178,7 +186,7 @@ func (rs *ReceiveSession) FetchFileWithProgressBar(fileName string, progress *pt
 	wg.Add(1)
 	go func() {
 		_, ioCopyErr = io.Copy(pipeWriter, io.TeeReader(resp.Body, downloadByteCounter))
-		pipeWriter.Close()
+		_ = pipeWriter.Close()
 		wg.Done()
 	}()
 
@@ -253,6 +261,14 @@ func (rs *ReceiveSession) SetMTimeInWorkDir(fileName string, mtime time.Time) er
 
 func (rs *ReceiveSession) StatInWorkDir(fileName string) (os.FileInfo, error) {
 	return os.Stat(rs.filepathInWorkDir(fileName))
+}
+
+func (rs *ReceiveSession) BaseUrl(baseUrl string) {
+	rs.baseUrl = &baseUrl
+}
+
+func (rs *ReceiveSession) MetaUrlRelativeToBaseUrl() string {
+	return rs.identifier + "/" + dto.FILENAME_META
 }
 
 // progressbarWriter counts the number of bytes written to it and adds those to a progressbar;

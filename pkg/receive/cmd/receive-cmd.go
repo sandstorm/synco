@@ -7,9 +7,11 @@ import (
 	"fmt"
 	"github.com/pterm/pterm"
 	"github.com/repeale/fp-go"
+	"github.com/sandstorm/synco/pkg/common/config"
 	"github.com/sandstorm/synco/pkg/common/dto"
 	"github.com/sandstorm/synco/pkg/receive"
 	"github.com/spf13/cobra"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -23,13 +25,15 @@ var ReceiveCmd = &cobra.Command{
 	Short:   "Wizard to be executed in target",
 	Long:    `...`,
 	Args:    cobra.ExactArgs(2),
-	Example: `synco receive [url] [password]`,
+	Example: `synco receive [identifier] [password]`,
 	// Uncomment the following lines if your bare application has an action associated with it:
 	Run: func(cmd *cobra.Command, args []string) {
-		baseUrl := args[0]
+		identifier := args[0]
 		password := args[1]
 
-		receiveSession, err := receive.NewSession(baseUrl, password)
+		receiveSession, err := receive.NewSession(identifier, password)
+		detectBaseUrlAndUpdateReceiveSession(receiveSession)
+
 		pterm.PrintOnErrorf("Error initializing receive session: %e", err)
 		if err != nil {
 			return
@@ -97,6 +101,94 @@ var ReceiveCmd = &cobra.Command{
 		pterm.Success.Printfln("FINISHED :) Now, terminate %s on the server side by pressing %s.", pterm.ThemeDefault.PrimaryStyle.Sprint("synco serve"), pterm.ThemeDefault.PrimaryStyle.Sprint("Ctrl-C"))
 		os.Exit(0)
 	},
+}
+
+// detectBaseUrlAndUpdateReceiveSession tries to find the base URL, by:
+// - reading .synco.yml
+// - asking the user
+// - validating whether the host can be found.
+func detectBaseUrlAndUpdateReceiveSession(rs *receive.ReceiveSession) error {
+	syncoConfig, err := config.ReadFromYaml()
+	if err != nil {
+		return err
+	}
+	for _, host := range syncoConfig.Hosts {
+		pterm.Debug.Printfln("Trying to detect the base URL: %s", host.BaseUrl)
+		rs.BaseUrl(host.BaseUrl)
+		_, err := rs.FetchMeta()
+		if err == nil {
+			// we found the meta file; so we are done.
+			pterm.Debug.Printfln("Found correct base URL at %s", host.BaseUrl)
+			// NOTE: the receiveSession is already updated; so we do not need to update anything.
+			return nil
+		}
+		if !errors.Is(err, receive.ErrMetaFileNotFound) {
+			// we got an unexpected error -> bubble up
+			return err
+		}
+		// receive.ErrMetaFileNotFound -> we did not find a meta file - so we try with the next URL in the loop.
+	}
+
+	//////////////////// MANUAL ENTRY
+	for true {
+		// auto-detection did not work; so we need to ask the user for the hostname.
+		baseUrlCandidate, _ := pterm.DefaultInteractiveTextInput.Show("Base URL")
+		baseUrlCandidate = strings.TrimSuffix(baseUrlCandidate, "/")
+		// the user can enter the URL with or without http/https prefix, and with or without www. prefix.
+		// we try to make it as convenient as possible here for the user :)
+		baseUrlCandidates := [...]string{
+			baseUrlCandidate,
+			"https://" + baseUrlCandidate,
+			"http://" + baseUrlCandidate,
+			"https://www." + baseUrlCandidate,
+			"http://www." + baseUrlCandidate,
+		}
+		for _, candidate := range baseUrlCandidates {
+			_, err = url.Parse(candidate)
+			if err != nil {
+				pterm.Debug.Printfln("Skipping candidate host %s because it is not valid.", candidate)
+				continue
+			}
+
+			rs.BaseUrl(candidate)
+			_, err = rs.FetchMeta()
+			if err == nil {
+				// we found the meta file; so we are done.
+				pterm.Success.Printfln("Found correct base URL at %s.", candidate)
+				updateSyncoYmlFile, err := pterm.DefaultInteractiveConfirm.WithDefaultValue(true).Show("Update .synco.yml file?")
+				if err != nil {
+					pterm.Fatal.Printfln("Confirm could not be shown: %s", err)
+				}
+				if updateSyncoYmlFile {
+					pterm.Debug.Printfln("Updating %s file with host %s", config.SyncoYamlFile, candidate)
+					syncoConfig.Hosts = append(syncoConfig.Hosts, config.SyncoHostConfig{
+						BaseUrl: candidate,
+					})
+					err := config.WriteToFile(syncoConfig)
+					if err != nil {
+						pterm.Fatal.Printfln("could not update file %s: %s", config.SyncoYamlFile, err)
+					}
+
+					pterm.Success.Printfln("Updated %s", config.SyncoYamlFile)
+				}
+
+				// NOTE: the receiveSession is already updated; so we do not need to update anything.
+				return nil
+			}
+
+			if !errors.Is(err, receive.ErrMetaFileNotFound) {
+				// we got an unexpected error -> bubble up
+				return err
+			}
+			// receive.ErrMetaFileNotFound -> we did not find a meta file - so we try with the next URL in the loop.
+		}
+
+		// when we end up here, we were not successful with finding the base URL. we need to ask again.
+		pterm.Warning.Printfln("We could not find the file %s/%s. Please supply a new base URL.", baseUrlCandidate, rs.MetaUrlRelativeToBaseUrl())
+	}
+
+	// never reached, because of "while true" loop above.
+	return nil
 }
 
 func downloadMysqldump(receiveSession *receive.ReceiveSession, fileSet *dto.FileSet) error {
