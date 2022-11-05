@@ -33,6 +33,22 @@
 <!-- TOC -->
 * [Architecture](https://sandstorm.github.io/synco/#/architecture)
 
+In many web projects, we at some point needed to **synchronize content from production to local development**,
+in order to reproduce and fix some bugs, test huge updates, or develop further features. We have implemented
+lots of different synchronization scripts - but they were often kind of half-baked, and had some uncovered
+edge cases.
+
+Especially in bigger projects which f.e. have multiple gigabytes of persistent resources like images which must
+be downloaded sometimes, we need the flexibility to choose whether we only need a database dump, or whether
+we need all the files. And if possible, we only want to download changed files instead of all of them.
+
+**This problem is what Synco solves.** Right now it is working **only for Neos/Flow projects**, though this will
+change really soon (and is already prepared).
+
+Synco is not the right fit if you want to run it inside some batch jobs like backups - I recommend to use
+[other solutions like Borgbackup](https://www.borgbackup.org/) there.
+
+
 # Features
 
 ```text
