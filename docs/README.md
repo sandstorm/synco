@@ -1,5 +1,5 @@
 <h1 align="center">synco</h1>
-<p align="center">an intelligent Database and File Dump Downloader for synchronizing production, staging, and local development</p>
+<p align="center">an intelligent Database and File Dump Downloader for synchronizing content between production, staging, and local development</p>
 
 <p align="center">
 
