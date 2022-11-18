@@ -12,12 +12,12 @@ require (
 	github.com/jamf/go-mysqldump v0.7.1
 	github.com/logrusorgru/aurora v2.0.3+incompatible
 	github.com/manifoldco/promptui v0.9.0
-	github.com/orlangure/gnomock v0.23.0
+	github.com/orlangure/gnomock v0.24.0
 	github.com/pterm/pterm v0.12.49
 	github.com/repeale/fp-go v0.11.1
 	github.com/rogpeppe/go-internal v1.9.0
 	github.com/spf13/cobra v1.6.1
-	github.com/stretchr/testify v1.8.0
+	github.com/stretchr/testify v1.8.1
 	gopkg.in/yaml.v3 v3.0.1
 	k8s.io/api v0.25.3
 	k8s.io/apimachinery v0.25.3
@@ -35,7 +35,7 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dlclark/regexp2 v1.7.0 // indirect
 	github.com/docker/distribution v2.8.0+incompatible // indirect
-	github.com/docker/docker v20.10.20+incompatible // indirect
+	github.com/docker/docker v20.10.21+incompatible // indirect
 	github.com/docker/go-connections v0.4.0 // indirect
 	github.com/docker/go-units v0.4.0 // indirect
 	github.com/emicklei/go-restful/v3 v3.8.0 // indirect
