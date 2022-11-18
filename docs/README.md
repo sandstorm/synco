@@ -101,6 +101,10 @@ curl https://sandstorm.github.io/synco/serve | sh -s -
 
 # for verbose mode, run with "--debug" at the end.
 curl https://sandstorm.github.io/synco/serve | sh -s - --debug
+
+# For Neos/Flow: To use a specific Flow context, do the following:
+export FLOW_CONTEXT=Production
+curl https://sandstorm.github.io/synco/serve | sh -s -
 ```
 
 This will (on the prod server):
