@@ -17,7 +17,7 @@ require (
 	github.com/repeale/fp-go v0.11.1
 	github.com/rogpeppe/go-internal v1.9.0
 	github.com/spf13/cobra v1.6.1
-	github.com/stretchr/testify v1.8.0
+	github.com/stretchr/testify v1.8.1
 	gopkg.in/yaml.v3 v3.0.1
 	k8s.io/api v0.25.3
 	k8s.io/apimachinery v0.25.3
