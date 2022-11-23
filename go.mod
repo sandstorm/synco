@@ -13,7 +13,7 @@ require (
 	github.com/logrusorgru/aurora v2.0.3+incompatible
 	github.com/manifoldco/promptui v0.9.0
 	github.com/orlangure/gnomock v0.23.0
-	github.com/pterm/pterm v0.12.49
+	github.com/pterm/pterm v0.12.50
 	github.com/repeale/fp-go v0.11.1
 	github.com/rogpeppe/go-internal v1.9.0
 	github.com/spf13/cobra v1.6.1
