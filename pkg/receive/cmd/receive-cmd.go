@@ -139,16 +139,22 @@ func detectBaseUrlAndUpdateReceiveSession(rs *receive.ReceiveSession) error {
 	for true {
 		// auto-detection did not work; so we need to ask the user for the hostname.
 		baseUrlCandidate, _ := pterm.DefaultInteractiveTextInput.Show("Base URL")
-		baseUrlCandidate = strings.TrimSuffix(baseUrlCandidate, "/")
+		baseUrlCandidate = strings.TrimSpace(baseUrlCandidate)
+		originalBaseUrlCandidate := strings.TrimSuffix(baseUrlCandidate, "/")
 		// the user can enter the URL with or without http/https prefix, and with or without www. prefix.
 		// we try to make it as convenient as possible here for the user :)
+		// => we remove http:// and https://, so that we can try it with or without https then.
+		baseUrlCandidate = strings.TrimPrefix(baseUrlCandidate, "http://")
+		baseUrlCandidate = strings.TrimPrefix(baseUrlCandidate, "https://")
+
 		baseUrlCandidates := [...]string{
-			baseUrlCandidate,
+			originalBaseUrlCandidate,
 			"https://" + baseUrlCandidate,
 			"http://" + baseUrlCandidate,
 			"https://www." + baseUrlCandidate,
 			"http://www." + baseUrlCandidate,
 		}
+
 		for _, candidate := range baseUrlCandidates {
 			_, err = url.ParseRequestURI(candidate)
 			if err != nil {
