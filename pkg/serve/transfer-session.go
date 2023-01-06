@@ -75,7 +75,7 @@ func NewSession(identifier string, password string, listen string, sigs chan os.
 			State: dto.STATE_CREATED,
 		},
 		Identifier: "ts-" + identifier,
-		Password:   "p-" + password,
+		Password:   password,
 		recipient:  recipient,
 		listen:     listen,
 		sigs:       sigs,
