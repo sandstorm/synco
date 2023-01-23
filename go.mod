@@ -3,7 +3,7 @@ module github.com/sandstorm/synco
 go 1.19
 
 require (
-	atomicgo.dev/keyboard v0.2.8
+	atomicgo.dev/keyboard v0.2.9
 	filippo.io/age v1.0.0
 	github.com/DATA-DOG/go-sqlmock v1.5.0
 	github.com/dop251/goja v0.0.0-20221003171542-5ea1285e6c91
@@ -13,7 +13,7 @@ require (
 	github.com/logrusorgru/aurora v2.0.3+incompatible
 	github.com/manifoldco/promptui v0.9.0
 	github.com/orlangure/gnomock v0.23.0
-	github.com/pterm/pterm v0.12.49
+	github.com/pterm/pterm v0.12.54
 	github.com/repeale/fp-go v0.11.1
 	github.com/rogpeppe/go-internal v1.9.0
 	github.com/spf13/cobra v1.6.1
@@ -78,7 +78,7 @@ require (
 	golang.org/x/sync v0.1.0 // indirect
 	golang.org/x/sys v0.2.0 // indirect
 	golang.org/x/term v0.2.0 // indirect
-	golang.org/x/text v0.4.0 // indirect
+	golang.org/x/text v0.6.0 // indirect
 	golang.org/x/time v0.0.0-20220411224347-583f2d630306 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/protobuf v1.28.0 // indirect
