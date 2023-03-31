@@ -14,6 +14,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 )
@@ -192,11 +193,17 @@ func (rs *ReceiveSession) FetchAndDecryptFileWithProgressBar(fileName string) ([
 }
 
 func (rs *ReceiveSession) FetchFileWithProgressBar(fileName string, progress *pterm.ProgressbarPrinter) ([]byte, error) {
-	urlToLoad, err := url.JoinPath(*rs.baseUrl, rs.identifier, fileName)
-	pterm.Debug.Printfln("Trying to download %s", urlToLoad)
-	if err != nil {
-		return nil, err
+	var urlToLoad string
+	var err error
+	if strings.HasPrefix(fileName, "http://") || strings.HasPrefix(fileName, "https://") {
+		urlToLoad = fileName
+	} else {
+		urlToLoad, err = url.JoinPath(*rs.baseUrl, rs.identifier, fileName)
+		if err != nil {
+			return nil, err
+		}
 	}
+	pterm.Debug.Printfln("Trying to download %s", urlToLoad)
 
 	resp, err := rs.httpClient.Get(urlToLoad)
 	if err != nil {
