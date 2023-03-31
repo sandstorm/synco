@@ -20,17 +20,17 @@ Data struct to configure dump behavior
 	Out:              Stream to wite to
 	Connection:       Database connection to dump
 	IgnoreTables:     Mark sensitive tables to ignore
-	IgnoreContentOfTables:     Mark sensitive tables to not dump the content for
+	WhereClauseForTables:     Mark sensitive tables to not dump the content for
 	MaxAllowedPacket: Sets the largest packet size to use in backups
 	LockTables:       Lock all tables for the duration of the dump
 */
 type Data struct {
-	Out                   io.Writer
-	Connection            *sql.DB
-	IgnoreTables          []string
-	IgnoreContentOfTables []string
-	MaxAllowedPacket      int
-	LockTables            bool
+	Out                  io.Writer
+	Connection           *sql.DB
+	IgnoreTables         []string
+	WhereClauseForTables map[string]string
+	MaxAllowedPacket     int
+	LockTables           bool
 
 	tx                 *sql.Tx
 	headerTmpl         *template.Template
@@ -44,10 +44,11 @@ type table struct {
 	Name string
 	Err  error
 
-	cols   []string
-	data   *Data
-	rows   *sql.Rows
-	values []interface{}
+	cols        []string
+	data        *Data
+	rows        *sql.Rows
+	values      []interface{}
+	WhereClause string
 }
 
 type metaData struct {
@@ -224,10 +225,8 @@ func (data *Data) writeTable(table *table) error {
 		return err
 	}
 
-	if !data.shouldIgnoreContentOfTable(table.Name) {
-		if err := data.tableContentTmpl.Execute(data.Out, table); err != nil {
-			return err
-		}
+	if err := data.tableContentTmpl.Execute(data.Out, table); err != nil {
+		return err
 	}
 
 	return table.Err
@@ -285,15 +284,6 @@ func (data *Data) isIgnoredTable(name string) bool {
 	return false
 }
 
-func (data *Data) shouldIgnoreContentOfTable(name string) bool {
-	for _, item := range data.IgnoreContentOfTables {
-		if item == name {
-			return true
-		}
-	}
-	return false
-}
-
 func (meta *metaData) updateServerVersion(data *Data) (err error) {
 	var serverVersion sql.NullString
 	err = data.tx.QueryRow("SELECT version()").Scan(&serverVersion)
@@ -304,10 +294,15 @@ func (meta *metaData) updateServerVersion(data *Data) (err error) {
 // MARK: create methods
 
 func (data *Data) createTable(name string) *table {
-	return &table{
-		Name: name,
-		data: data,
+	t := &table{
+		Name:        name,
+		data:        data,
+		WhereClause: data.WhereClauseForTables[name],
 	}
+	if len(t.WhereClause) == 0 {
+		t.WhereClause = "TRUE"
+	}
+	return t
 }
 
 func (table *table) NameEsc() string {
@@ -396,7 +391,7 @@ func (table *table) Init() error {
 	}
 
 	var err error
-	table.rows, err = table.data.tx.Query("SELECT " + table.columnsList() + " FROM " + table.NameEsc())
+	table.rows, err = table.data.tx.Query("SELECT " + table.columnsList() + " FROM " + table.NameEsc() + " WHERE " + table.WhereClause)
 	if err != nil {
 		return err
 	}

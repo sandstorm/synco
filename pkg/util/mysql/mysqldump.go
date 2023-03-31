@@ -9,7 +9,7 @@ import (
 	"io"
 )
 
-func CreateDump(dbCredentials *common.DbCredentials, writer io.WriteCloser, ignoreContentOfTables []string) (err error) {
+func CreateDump(dbCredentials *common.DbCredentials, writer io.WriteCloser, whereClauseForTables map[string]string) (*sql.DB, error) {
 	// Open connection to database
 	config := mysql.NewConfig()
 	config.User = dbCredentials.User
@@ -20,23 +20,23 @@ func CreateDump(dbCredentials *common.DbCredentials, writer io.WriteCloser, igno
 
 	db, err := sql.Open("mysql", config.FormatDSN())
 	if err != nil {
-		return fmt.Errorf("error opening database: %w", err)
+		return nil, fmt.Errorf("error opening database: %w", err)
 	}
 
 	// Register database with mysqldump
 
 	dumper := mysqldump.NewDumper(db, writer)
-	dumper.IgnoreContentOfTables = ignoreContentOfTables
+	dumper.WhereClauseForTables = whereClauseForTables
 	err = dumper.Dump()
 	if err != nil {
-		return fmt.Errorf("error registering database: %w", err)
+		return nil, fmt.Errorf("error registering database: %w", err)
 	}
 
 	// Close dumper, connected database and file stream.
 	err = writer.Close()
 	if err != nil {
-		return fmt.Errorf("error closing dumper: %w", err)
+		return nil, fmt.Errorf("error closing dumper: %w", err)
 	}
 
-	return nil
+	return db, nil
 }

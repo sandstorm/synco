@@ -1,7 +1,9 @@
 package flowServe
 
 import (
+	"database/sql"
 	"encoding/json"
+	"fmt"
 	"github.com/pterm/pterm"
 	"github.com/sandstorm/synco/pkg/common"
 	"github.com/sandstorm/synco/pkg/common/dto"
@@ -133,16 +135,26 @@ func (f flowServe) Serve(transferSession *serve.TransferSession) {
 	}
 
 	flowPersistence := f.extractDatabaseCredentialsFromFlow()
-	ignoreContentOfTables := []string{
+	whereClauseForTables := map[string]string{
 		// event log can be HUGE and is usually not needed.
-		"neos_neos_eventlog_domain_model_event",
+		"neos_neos_eventlog_domain_model_event": "FALSE",
 		// thumbnails can be regenerated
-		"neos_media_domain_model_thumbnail",
+		"neos_media_domain_model_thumbnail": "FALSE",
+
+		// skip persistent resources which are purely for thumbnails
+		"neos_flow_resourcemanagement_persistentresource": `
+			NOT EXISTS (
+    			SELECT 1
+				FROM neos_media_domain_model_thumbnail th
+				WHERE
+					th.resource IS NOT NULL
+					AND th.resource = neos_flow_resourcemanagement_persistentresource.persistence_object_identifier
+				)`,
 	}
 	if transferSession.DumpAll {
-		ignoreContentOfTables = []string{}
+		whereClauseForTables = map[string]string{}
 	}
-	f.databaseDump(transferSession, flowPersistence, ignoreContentOfTables)
+	db := f.databaseDump(transferSession, flowPersistence, whereClauseForTables)
 	flowResourceConfig := f.extractResourceConfigFromFlow()
 	persistentTarget := flowResourceConfig.FindPersistentTarget()
 
@@ -152,8 +164,9 @@ func (f flowServe) Serve(transferSession *serve.TransferSession) {
 		f.extractResources(transferSession, "./Web/_Resources/Persistent", "_Resources/Persistent")
 	} else if persistentTarget.IsS3Target() {
 		pterm.Info.Printfln("Extracting resources for S3Target (baseUri=%s)", persistentTarget.TargetOptions.BaseUri)
-		pterm.Fatal.Printfln("TODO IMPLEMENT ME")
+		f.extractResourcesFromS3(transferSession, db, persistentTarget, whereClauseForTables)
 	} else if persistentTarget.IsFileSystemTarget() {
+		// TODO: support whereClauseForTables.
 		pterm.Info.Printfln("Extracting resources for FileSystemTarget (path=%s, baseUri=%s)", persistentTarget.TargetOptions.Path, persistentTarget.TargetOptions.BaseUri)
 		f.extractResources(transferSession, persistentTarget.TargetOptions.Path, persistentTarget.TargetOptions.BaseUri)
 	} else {
@@ -168,11 +181,11 @@ func (f flowServe) Serve(transferSession *serve.TransferSession) {
 	pterm.Success.Printfln("")
 	pterm.Success.Printfln("=================================================================================")
 	pterm.Success.Printfln("")
-	if len(ignoreContentOfTables) > 0 {
+	if !transferSession.DumpAll {
 		pterm.Success.Printfln("The dump does NOT contain:")
-		for _, table := range ignoreContentOfTables {
-			pterm.Success.Printfln("- %s", table)
-		}
+		pterm.Success.Printfln("- neos_neos_eventlog_domain_model_event (usually huge and not needed)")
+		pterm.Success.Printfln("- neos_media_domain_model_thumbnail (can be regenerated on the client)")
+		pterm.Success.Printfln("- partially neos_flow_resourcemanagement_persistentresource (thumbnails not included)")
 		pterm.Success.Printfln("")
 		pterm.Success.Printfln("In case you want to dump all tables, run with --all.")
 	}
@@ -200,8 +213,8 @@ func (f flowServe) extractDatabaseCredentialsFromFlow() flowPersistenceBackendOp
 }
 
 func (f flowServe) extractResourceConfigFromFlow() flowResourceOptions {
-	pterm.Debug.Println("Finding database credentials")
-	output := f.readFlowSettings("Neos.Flow.persistence.backendOptions")
+	pterm.Debug.Println("Finding resource configuration")
+	output := f.readFlowSettings("Neos.Flow.resource")
 	var opts flowResourceOptions
 	err := yaml.Unmarshal([]byte(output), &opts)
 	if err != nil {
@@ -222,7 +235,7 @@ func (f flowServe) readFlowSettings(path string) string {
 	return output
 }
 
-func (f flowServe) databaseDump(transferSession *serve.TransferSession, flowPersistence flowPersistenceBackendOptions, ignoreContentOfTables []string) {
+func (f flowServe) databaseDump(transferSession *serve.TransferSession, flowPersistence flowPersistenceBackendOptions, whereClauseForTables map[string]string) *sql.DB {
 	// 2) DATABASE DUMP
 	// basically the way it works is:
 	// mysql.CreateDump --> age.Encrypt --> write to file.
@@ -240,7 +253,7 @@ func (f flowServe) databaseDump(transferSession *serve.TransferSession, flowPers
 	}
 
 	// 2b) the actual DB dump. also finishes writing.
-	err = mysql.CreateDump(flowPersistence.ToDbCredentials(), wc, ignoreContentOfTables)
+	db, err := mysql.CreateDump(flowPersistence.ToDbCredentials(), wc, whereClauseForTables)
 	if err != nil {
 		pterm.Fatal.Printfln("could not create SQL dump: %s", err)
 	}
@@ -252,12 +265,11 @@ func (f flowServe) databaseDump(transferSession *serve.TransferSession, flowPers
 	}
 
 	pterm.Info.Printfln("Stored Database Dump in %s", "dump.sql.enc")
+	return db
 }
 
 func (f flowServe) extractResources(transferSession *serve.TransferSession, persistentResourcesBasePath string, baseUri string) {
-	indexFileName := "Resources.index.json.enc"
 	resourceFilesIndex := make(dto.PublicFilesIndex)
-
 	totalSizeBytes := uint64(0)
 	err := filepath.Walk(persistentResourcesBasePath,
 		func(filePath string, info os.FileInfo, err error) error {
@@ -280,11 +292,11 @@ func (f flowServe) extractResources(transferSession *serve.TransferSession, pers
 
 			filePath = strings.TrimPrefix(filePath, persistentResourcesBasePath) + baseUri
 
-			// Flow stores files in /..../<resourceId>/<filename>.jpg; so we extract the resourceId here.
-			resourceId := path.Base(path.Dir(filePath))
+			// Flow stores files in /..../<resourceSha1>/<filename>.jpg; so we extract the resourceSha1 here.
+			resourceSha1 := path.Base(path.Dir(filePath))
 
 			totalSizeBytes += uint64(realFileInfo.Size())
-			resourceFilesIndex["Resources/"+resourceId[0:1]+"/"+resourceId[1:2]+"/"+resourceId[2:3]+"/"+resourceId[3:4]+"/"+resourceId] = dto.PublicFilesIndexEntry{
+			resourceFilesIndex["Resources/"+resourceSha1[0:1]+"/"+resourceSha1[1:2]+"/"+resourceSha1[2:3]+"/"+resourceSha1[3:4]+"/"+resourceSha1] = dto.PublicFilesIndexEntry{
 				SizeBytes: int64(realFileInfo.Size()),
 				MTime:     realFileInfo.ModTime().Unix(),
 				PublicUri: "<BASE>/" + filePath,
@@ -294,6 +306,55 @@ func (f flowServe) extractResources(transferSession *serve.TransferSession, pers
 	if err != nil {
 		log.Println(err)
 	}
+
+	f.writeResourcesIndex(transferSession, resourceFilesIndex, totalSizeBytes)
+}
+
+func (f flowServe) extractResourcesFromS3(transferSession *serve.TransferSession, db *sql.DB, persistentTarget *flowResourceTarget, whereClauseForTables map[string]string) {
+	extraWhereClause := "true"
+	if len(whereClauseForTables["neos_flow_resourcemanagement_persistentresource"]) > 0 {
+		extraWhereClause = whereClauseForTables["neos_flow_resourcemanagement_persistentresource"]
+	}
+	resourceFilesIndex := make(dto.PublicFilesIndex)
+	totalSizeBytes := uint64(0)
+	q := fmt.Sprintf(`
+		SELECT
+			sha1, filename, filesize
+		FROM
+			neos_flow_resourcemanagement_persistentresource
+		WHERE collectionname = 'persistent' AND %s`, extraWhereClause)
+
+	rows, err := db.Query(q)
+	if err != nil {
+		pterm.Fatal.Printfln("could query for resources: %s", err)
+	}
+	defer rows.Close()
+
+	var resourceSha1, filename string
+	var filesize uint64
+	for rows.Next() {
+		err := rows.Scan(&resourceSha1, &filename, &filesize)
+		if err != nil {
+			pterm.Fatal.Printfln("error loading DB row: %s", err)
+		}
+
+		totalSizeBytes += filesize
+		resourceFilesIndex["Resources/"+resourceSha1[0:1]+"/"+resourceSha1[1:2]+"/"+resourceSha1[2:3]+"/"+resourceSha1[3:4]+"/"+resourceSha1] = dto.PublicFilesIndexEntry{
+			SizeBytes: int64(filesize),
+			MTime:     0,
+			PublicUri: persistentTarget.TargetOptions.BaseUri + resourceSha1 + "/" + filename,
+		}
+	}
+	err = rows.Err()
+	if err != nil {
+		pterm.Fatal.Printfln("error iterating rows: %s", err)
+	}
+
+	f.writeResourcesIndex(transferSession, resourceFilesIndex, totalSizeBytes)
+}
+
+func (f flowServe) writeResourcesIndex(transferSession *serve.TransferSession, resourceFilesIndex dto.PublicFilesIndex, totalSizeBytes uint64) {
+	indexFileName := "Resources.index.json.enc"
 
 	bytes, err := json.Marshal(resourceFilesIndex)
 	if err != nil {
