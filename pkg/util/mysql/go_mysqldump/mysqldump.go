@@ -43,11 +43,11 @@ func Register(db *sql.DB, dir, format string) (*Data, error) {
 }
 
 // Dump Creates a MYSQL dump from the connection to the stream.
-func Dump(db *sql.DB, out io.Writer) error {
-	return (&Data{
+func NewDumper(db *sql.DB, out io.Writer) *Data {
+	return &Data{
 		Connection: db,
 		Out:        out,
-	}).Dump()
+	}
 }
 
 // Close the dumper.

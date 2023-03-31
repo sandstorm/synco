@@ -133,7 +133,16 @@ func (f flowServe) Serve(transferSession *serve.TransferSession) {
 	}
 
 	flowPersistence := f.extractDatabaseCredentialsFromFlow()
-	f.databaseDump(transferSession, flowPersistence)
+	ignoreContentOfTables := []string{
+		// event log can be HUGE and is usually not needed.
+		"neos_neos_eventlog_domain_model_event",
+		// thumbnails can be regenerated
+		"neos_media_domain_model_thumbnail",
+	}
+	if transferSession.DumpAll {
+		ignoreContentOfTables = []string{}
+	}
+	f.databaseDump(transferSession, flowPersistence, ignoreContentOfTables)
 	flowResourceConfig := f.extractResourceConfigFromFlow()
 	persistentTarget := flowResourceConfig.FindPersistentTarget()
 
@@ -159,6 +168,15 @@ func (f flowServe) Serve(transferSession *serve.TransferSession) {
 	pterm.Success.Printfln("")
 	pterm.Success.Printfln("=================================================================================")
 	pterm.Success.Printfln("")
+	if len(ignoreContentOfTables) > 0 {
+		pterm.Success.Printfln("The dump does NOT contain:")
+		for _, table := range ignoreContentOfTables {
+			pterm.Success.Printfln("- %s", table)
+		}
+		pterm.Success.Printfln("")
+		pterm.Success.Printfln("In case you want to dump all tables, run with --all.")
+	}
+
 	pterm.Success.Printfln("READY: Execute the following command locally to download the dump:")
 	pterm.Success.Printfln("")
 	pterm.Success.Printfln("          synco receive %s %s", transferSession.Identifier, transferSession.Password)
@@ -204,7 +222,7 @@ func (f flowServe) readFlowSettings(path string) string {
 	return output
 }
 
-func (f flowServe) databaseDump(transferSession *serve.TransferSession, flowPersistence flowPersistenceBackendOptions) {
+func (f flowServe) databaseDump(transferSession *serve.TransferSession, flowPersistence flowPersistenceBackendOptions, ignoreContentOfTables []string) {
 	// 2) DATABASE DUMP
 	// basically the way it works is:
 	// mysql.CreateDump --> age.Encrypt --> write to file.
@@ -222,7 +240,7 @@ func (f flowServe) databaseDump(transferSession *serve.TransferSession, flowPers
 	}
 
 	// 2b) the actual DB dump. also finishes writing.
-	err = mysql.CreateDump(flowPersistence.ToDbCredentials(), wc)
+	err = mysql.CreateDump(flowPersistence.ToDbCredentials(), wc, ignoreContentOfTables)
 	if err != nil {
 		pterm.Fatal.Printfln("could not create SQL dump: %s", err)
 	}

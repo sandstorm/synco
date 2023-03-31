@@ -13,12 +13,14 @@ import (
 var identifier string
 var password string
 var listen string
+var all bool
 
 var ServeCmd = &cobra.Command{
 	Use:   "serve",
 	Short: "Wizard to be executed in source",
 	Long: `The server part is run on the source / production system, where it automatically discovers used frameworks
-and figures out what to extract.`,
+and figures out what to extract. Depending on the framework, the system might NOT return the all dataset
+- if you want to dump EVERYTHING, use the "--all" arg.`,
 	Example: `synco serve`,
 	// Uncomment the following lines if your bare application has an action associated with it:
 	Run: func(cmd *cobra.Command, args []string) {
@@ -51,7 +53,7 @@ and figures out what to extract.`,
 			pterm.Debug.Printfln("Checking for %s framework", framework.Name())
 			if framework.Detect() {
 				pterm.Info.Printfln("Found %s framework.", framework.Name())
-				transferSession, err := serve.NewSession(identifier, password, listen, sigs)
+				transferSession, err := serve.NewSession(identifier, password, listen, all, sigs)
 				if err != nil {
 					pterm.Fatal.Printfln("Error creating transfer session: %s", err)
 				}
@@ -75,4 +77,5 @@ func init() {
 	ServeCmd.Flags().StringVar(&identifier, "id", "", "identifier for the decryption")
 	ServeCmd.Flags().StringVar(&password, "password", "", "password to encrypt the files for")
 	ServeCmd.Flags().StringVar(&listen, "listen", "", "port to create a HTTP server on, if any")
+	ServeCmd.Flags().BoolVar(&all, "all", false, "Should dump EVERYTHING? (depending on framework)")
 }

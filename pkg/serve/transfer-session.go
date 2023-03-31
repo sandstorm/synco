@@ -25,7 +25,8 @@ type TransferSession struct {
 	httpSrv *http.Server
 
 	// Termination signals
-	sigs chan os.Signal
+	sigs    chan os.Signal
+	DumpAll bool
 }
 
 func (ts *TransferSession) WithFrameworkAndWebDirectory(frameworkName string, webDirectory string) error {
@@ -58,7 +59,7 @@ func (ts *TransferSession) WithFrameworkAndWebDirectory(frameworkName string, we
 	return nil
 }
 
-func NewSession(identifier string, password string, listen string, sigs chan os.Signal) (*TransferSession, error) {
+func NewSession(identifier string, password string, listen string, all bool, sigs chan os.Signal) (*TransferSession, error) {
 	if len(password) == 0 {
 		return nil, fmt.Errorf("empty password")
 	}
@@ -76,6 +77,7 @@ func NewSession(identifier string, password string, listen string, sigs chan os.
 		},
 		Identifier: "ts-" + identifier,
 		Password:   password,
+		DumpAll:    all,
 		recipient:  recipient,
 		listen:     listen,
 		sigs:       sigs,

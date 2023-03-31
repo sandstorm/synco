@@ -20,21 +20,24 @@ Data struct to configure dump behavior
 	Out:              Stream to wite to
 	Connection:       Database connection to dump
 	IgnoreTables:     Mark sensitive tables to ignore
+	IgnoreContentOfTables:     Mark sensitive tables to not dump the content for
 	MaxAllowedPacket: Sets the largest packet size to use in backups
 	LockTables:       Lock all tables for the duration of the dump
 */
 type Data struct {
-	Out              io.Writer
-	Connection       *sql.DB
-	IgnoreTables     []string
-	MaxAllowedPacket int
-	LockTables       bool
+	Out                   io.Writer
+	Connection            *sql.DB
+	IgnoreTables          []string
+	IgnoreContentOfTables []string
+	MaxAllowedPacket      int
+	LockTables            bool
 
-	tx         *sql.Tx
-	headerTmpl *template.Template
-	tableTmpl  *template.Template
-	footerTmpl *template.Template
-	err        error
+	tx                 *sql.Tx
+	headerTmpl         *template.Template
+	tableStructureTmpl *template.Template
+	tableContentTmpl   *template.Template
+	footerTmpl         *template.Template
+	err                error
 }
 
 type table struct {
@@ -93,7 +96,7 @@ const footerTmpl = `/*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 `
 
 // Takes a *table
-const tableTmpl = `
+const tableStructureTmpl = `
 --
 -- Table structure for table {{ .NameEsc }}
 --
@@ -103,6 +106,10 @@ DROP TABLE IF EXISTS {{ .NameEsc }};
  SET character_set_client = utf8mb4 ;
 {{ .CreateSQL }};
 /*!40101 SET character_set_client = @saved_cs_client */;
+`
+
+// Takes a *table
+const tableContentTmpl = `
 
 --
 -- Dumping data for table {{ .NameEsc }}
@@ -213,9 +220,16 @@ func (data *Data) dumpTable(name string) error {
 }
 
 func (data *Data) writeTable(table *table) error {
-	if err := data.tableTmpl.Execute(data.Out, table); err != nil {
+	if err := data.tableStructureTmpl.Execute(data.Out, table); err != nil {
 		return err
 	}
+
+	if !data.shouldIgnoreContentOfTable(table.Name) {
+		if err := data.tableContentTmpl.Execute(data.Out, table); err != nil {
+			return err
+		}
+	}
+
 	return table.Err
 }
 
@@ -228,7 +242,8 @@ func (data *Data) getTemplates() (err error) {
 		return
 	}
 
-	data.tableTmpl, err = template.New("mysqldumpTable").Parse(tableTmpl)
+	data.tableStructureTmpl, err = template.New("mysqldumpTableStructure").Parse(tableStructureTmpl)
+	data.tableContentTmpl, err = template.New("mysqldumpTableContent").Parse(tableContentTmpl)
 	if err != nil {
 		return
 	}
@@ -263,6 +278,15 @@ func (data *Data) getTables() ([]string, error) {
 
 func (data *Data) isIgnoredTable(name string) bool {
 	for _, item := range data.IgnoreTables {
+		if item == name {
+			return true
+		}
+	}
+	return false
+}
+
+func (data *Data) shouldIgnoreContentOfTable(name string) bool {
+	for _, item := range data.IgnoreContentOfTables {
 		if item == name {
 			return true
 		}
