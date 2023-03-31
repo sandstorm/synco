@@ -39,6 +39,69 @@ func (f flowServe) Detect() bool {
 	return true
 }
 
+type flowResourceOptions struct {
+	Collections map[string]flowResourceCollection `yaml:"collections"`
+	Targets     map[string]flowResourceTarget     `yaml:"targets"`
+}
+
+func (o *flowResourceOptions) FindPersistentTarget() *flowResourceTarget {
+	var persistentTargetName string
+	for key, collection := range o.Collections {
+		if key == "persistent" {
+			pterm.Info.Printfln("collection 'persistent' is using target '%s'", collection.Target)
+			persistentTargetName = collection.Target
+		}
+	}
+
+	if persistentTargetName == "" {
+		pterm.Warning.Printfln("did not find collection 'persistent' in config")
+		return nil
+	}
+
+	for key, target := range o.Targets {
+		if key == persistentTargetName {
+			pterm.Info.Printfln("target '%s' is configured as follows: '%+v'", persistentTargetName, target)
+
+			return &target
+		}
+	}
+
+	pterm.Warning.Printfln("did not find persistent target '%s' in config.", persistentTargetName)
+	return nil
+}
+
+type flowResourceCollection struct {
+	// storage does not matter, so we only add target for now
+	Target string `yaml:"target"`
+}
+type flowResourceTarget struct {
+	Target        string `yaml:"target"`
+	TargetOptions struct {
+		// **for Neos\Flow\ResourceManagement\Target\FileSystemSymlinkTarget:**
+		// f.e. /Users/sebastian/src/neos-90/Web/_Resources/Persistent/
+		Path string `yaml:"path"`
+		// f.e. _Resources/Persistent/ - or
+		// https://cdn.yourwebsite.de/resources/' for S3Target
+		BaseUri string `yaml:"baseUri"`
+
+		// **for Flownative\Aws\S3\S3Target**
+		// f.e. prod-neos-cdn
+		Bucket string `yaml:"bucket"`
+		// f.e. resources/ - see BaseUri
+		KeyPrefix string `yaml:"keyPrefix"`
+	} `yaml:"targetOptions"`
+}
+
+func (t flowResourceTarget) IsS3Target() bool {
+	return t.Target == "Flownative\\Aws\\S3\\S3Target"
+}
+
+func (t flowResourceTarget) IsFileSystemTarget() bool {
+	return t.Target == "Neos\\Flow\\ResourceManagement\\Target\\FileSystemSymlinkTarget" ||
+		t.Target == "Neos\\Flow\\ResourceManagement\\Target\\FileSystemTarget"
+
+}
+
 type flowPersistenceBackendOptions struct {
 	Driver   string `yaml:"driver"`
 	Host     string `yaml:"host"`
@@ -71,7 +134,22 @@ func (f flowServe) Serve(transferSession *serve.TransferSession) {
 
 	flowPersistence := f.extractDatabaseCredentialsFromFlow()
 	f.databaseDump(transferSession, flowPersistence)
-	f.extractResources(transferSession)
+	flowResourceConfig := f.extractResourceConfigFromFlow()
+	persistentTarget := flowResourceConfig.FindPersistentTarget()
+
+	if persistentTarget == nil {
+		pterm.Warning.Printfln("falling back to extracting locations from default location.")
+		// fallback to extracting resources from default location
+		f.extractResources(transferSession, "./Web/_Resources/Persistent", "_Resources/Persistent")
+	} else if persistentTarget.IsS3Target() {
+		pterm.Info.Printfln("Extracting resources for S3Target (baseUri=%s)", persistentTarget.TargetOptions.BaseUri)
+		pterm.Fatal.Printfln("TODO IMPLEMENT ME")
+	} else if persistentTarget.IsFileSystemTarget() {
+		pterm.Info.Printfln("Extracting resources for FileSystemTarget (path=%s, baseUri=%s)", persistentTarget.TargetOptions.Path, persistentTarget.TargetOptions.BaseUri)
+		f.extractResources(transferSession, persistentTarget.TargetOptions.Path, persistentTarget.TargetOptions.BaseUri)
+	} else {
+		pterm.Fatal.Printfln("unknown persistent target type '%s'", persistentTarget.Target)
+	}
 
 	transferSession.Meta.State = dto.STATE_READY
 	err = transferSession.UpdateMetadata()
@@ -93,7 +171,29 @@ func (f flowServe) Serve(transferSession *serve.TransferSession) {
 
 func (f flowServe) extractDatabaseCredentialsFromFlow() flowPersistenceBackendOptions {
 	pterm.Debug.Println("Finding database credentials")
-	cmd := exec.Command("./flow", "configuration:show", "--type", "Settings", "--path", "Neos.Flow.persistence.backendOptions")
+	output := f.readFlowSettings("Neos.Flow.persistence.backendOptions")
+	var flowPersistence flowPersistenceBackendOptions
+	err := yaml.Unmarshal([]byte(output), &flowPersistence)
+	if err != nil {
+		pterm.Fatal.Printfln("could not parse output of ./flow configuration:show: %s. Output was: %s", err, output)
+	}
+	pterm.Info.Printfln("Extracted Database Host %s, User: %s", flowPersistence.Host, flowPersistence.User)
+	return flowPersistence
+}
+
+func (f flowServe) extractResourceConfigFromFlow() flowResourceOptions {
+	pterm.Debug.Println("Finding database credentials")
+	output := f.readFlowSettings("Neos.Flow.persistence.backendOptions")
+	var opts flowResourceOptions
+	err := yaml.Unmarshal([]byte(output), &opts)
+	if err != nil {
+		pterm.Fatal.Printfln("could not parse output of ./flow configuration:show: %s. Output was: %s", err, output)
+	}
+	return opts
+}
+
+func (f flowServe) readFlowSettings(path string) string {
+	cmd := exec.Command("./flow", "configuration:show", "--type", "Settings", "--path", path)
 	output, err := util.RunWrappedCommand(cmd)
 	if err != nil {
 		pterm.Fatal.Printfln("./flow configuration:show did not succeed: %s", err)
@@ -101,13 +201,7 @@ func (f flowServe) extractDatabaseCredentialsFromFlow() flowPersistenceBackendOp
 	// remove the first line; as it contains the " Configuration "Settings: Neos.Flow.persistence.backendOptions":" line:
 	outputParts := strings.SplitN(output, "\n", 2)
 	output = outputParts[1]
-	var flowPersistence flowPersistenceBackendOptions
-	err = yaml.Unmarshal([]byte(output), &flowPersistence)
-	if err != nil {
-		pterm.Fatal.Printfln("could not parse output of ./flow configuration:show: %s. Output was: %s", err, output)
-	}
-	pterm.Info.Printfln("Extracted Database Host %s, User: %s", flowPersistence.Host, flowPersistence.User)
-	return flowPersistence
+	return output
 }
 
 func (f flowServe) databaseDump(transferSession *serve.TransferSession, flowPersistence flowPersistenceBackendOptions) {
@@ -142,12 +236,12 @@ func (f flowServe) databaseDump(transferSession *serve.TransferSession, flowPers
 	pterm.Info.Printfln("Stored Database Dump in %s", "dump.sql.enc")
 }
 
-func (f flowServe) extractResources(transferSession *serve.TransferSession) {
+func (f flowServe) extractResources(transferSession *serve.TransferSession, persistentResourcesBasePath string, baseUri string) {
 	indexFileName := "Resources.index.json.enc"
 	resourceFilesIndex := make(dto.PublicFilesIndex)
 
 	totalSizeBytes := uint64(0)
-	err := filepath.Walk("./Web/_Resources/Persistent",
+	err := filepath.Walk(persistentResourcesBasePath,
 		func(filePath string, info os.FileInfo, err error) error {
 			if err != nil {
 				return err
@@ -166,7 +260,7 @@ func (f flowServe) extractResources(transferSession *serve.TransferSession) {
 				return err
 			}
 
-			filePath = strings.TrimPrefix(filePath, "Web/")
+			filePath = strings.TrimPrefix(filePath, persistentResourcesBasePath) + baseUri
 
 			// Flow stores files in /..../<resourceId>/<filename>.jpg; so we extract the resourceId here.
 			resourceId := path.Base(path.Dir(filePath))
