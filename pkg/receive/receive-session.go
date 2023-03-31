@@ -30,15 +30,16 @@ type ReceiveSession struct {
 }
 
 func newHttpClient() *http.Client {
+	dialer := &net.Dialer{
+		// Modify the time to wait for a connection to establish
+		Timeout:   1 * time.Second,
+		KeepAlive: 30 * time.Second,
+	}
 	//ref: Copy and modify defaults from https://golang.org/src/net/http/transport.go
 	//Note: Clients and Transports should only be created once and reused
 	transport := http.Transport{
-		Proxy: http.ProxyFromEnvironment,
-		Dial: (&net.Dialer{
-			// Modify the time to wait for a connection to establish
-			Timeout:   1 * time.Second,
-			KeepAlive: 30 * time.Second,
-		}).Dial,
+		Proxy:               http.ProxyFromEnvironment,
+		Dial:                dialer.Dial,
 		TLSHandshakeTimeout: 10 * time.Second,
 	}
 
