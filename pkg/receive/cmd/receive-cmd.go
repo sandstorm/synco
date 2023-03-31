@@ -13,7 +13,6 @@ import (
 	"github.com/spf13/cobra"
 	"net/url"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 )
@@ -232,11 +231,6 @@ func downloadPublicFiles(receiveSession *receive.ReceiveSession, fileSet *dto.Fi
 
 	for fileName, fileDefinition := range publicFilesIndex {
 		i++
-		// create parent directory
-		err = os.MkdirAll(filepath.Dir(fileName), 0755)
-		if err != nil {
-			return fmt.Errorf("error creating directory %s: %w", filepath.Dir(fileName), err)
-		}
 
 		// Check for changes of the files (based on size and modification times)
 		fileStat, err := receiveSession.StatInWorkDir(fileName)
