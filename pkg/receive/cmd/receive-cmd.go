@@ -256,14 +256,16 @@ func downloadPublicFiles(receiveSession *receive.ReceiveSession, fileSet *dto.Fi
 		// TODO: this is a bit brittle - but for now it works.
 		err = receiveSession.DumpFileWithProgressBar(strings.ReplaceAll(fileDefinition.PublicUri, "<BASE>", ".."), fileName, progress)
 		if err != nil {
-			return fmt.Errorf("error on downloading %s to %s: %w", fileDefinition.PublicUri, fileName, err)
-		}
-		// set the desired modification time to the server's modification time (for change tracking)
-		desiredMtime := time.Unix(fileDefinition.MTime, 0)
-		pterm.Debug.Printfln("Setting mtime for %s to %d", fileName, fileDefinition.MTime)
-		err = receiveSession.SetMTimeInWorkDir(fileName, desiredMtime)
-		if err != nil {
-			return err
+			pterm.Error.Printfln("error on downloading %s to %s: %w - continuing with next file", fileDefinition.PublicUri, fileName, err)
+			// continue with next iteration
+		} else {
+			// set the desired modification time to the server's modification time (for change tracking)
+			desiredMtime := time.Unix(fileDefinition.MTime, 0)
+			pterm.Debug.Printfln("Setting mtime for %s to %d", fileName, fileDefinition.MTime)
+			err = receiveSession.SetMTimeInWorkDir(fileName, desiredMtime)
+			if err != nil {
+				return err
+			}
 		}
 	}
 	pterm.DefaultBasicText.Sprintf("Downloaded %d files (Skipped: %d)", len(publicFilesIndex), skipped)
