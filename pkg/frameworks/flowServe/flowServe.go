@@ -162,14 +162,18 @@ func (f flowServe) Serve(transferSession *serve.TransferSession) {
 	if persistentTarget == nil {
 		pterm.Warning.Printfln("falling back to extracting locations from default location.")
 		// fallback to extracting resources from default location
-		f.extractResources(transferSession, "./Web/_Resources/Persistent", "_Resources/Persistent")
+		f.extractAllResourcesFromFolder(transferSession, "./Web/_Resources/Persistent", "_Resources/Persistent")
 	} else if persistentTarget.IsS3Target() {
 		pterm.Info.Printfln("Extracting resources for S3Target (baseUri=%s)", persistentTarget.TargetOptions.BaseUri)
 		f.extractResourcesFromS3(transferSession, db, persistentTarget, whereClauseForTables)
 	} else if persistentTarget.IsFileSystemTarget() {
-		// TODO: support whereClauseForTables.
-		pterm.Info.Printfln("Extracting resources for FileSystemTarget (path=%s, baseUri=%s)", persistentTarget.TargetOptions.Path, persistentTarget.TargetOptions.BaseUri)
-		f.extractResources(transferSession, persistentTarget.TargetOptions.Path, persistentTarget.TargetOptions.BaseUri)
+		if transferSession.DumpAll {
+			pterm.Info.Printfln("Extracting ALL resources for FileSystemTarget (path=%s, baseUri=%s)", persistentTarget.TargetOptions.Path, persistentTarget.TargetOptions.BaseUri)
+			f.extractAllResourcesFromFolder(transferSession, persistentTarget.TargetOptions.Path, persistentTarget.TargetOptions.BaseUri)
+		} else {
+			pterm.Info.Printfln("Extracting resources (but skipping thumbnails) for FileSystemTarget (path=%s, baseUri=%s)", persistentTarget.TargetOptions.Path, persistentTarget.TargetOptions.BaseUri)
+			f.extractResourcesFromFolderSkippingThumbnails(transferSession, db, persistentTarget, whereClauseForTables)
+		}
 	} else {
 		pterm.Fatal.Printfln("unknown persistent target type '%s'", persistentTarget.Target)
 	}
@@ -269,7 +273,7 @@ func (f flowServe) databaseDump(transferSession *serve.TransferSession, flowPers
 	return db
 }
 
-func (f flowServe) extractResources(transferSession *serve.TransferSession, persistentResourcesBasePath string, baseUri string) {
+func (f flowServe) extractAllResourcesFromFolder(transferSession *serve.TransferSession, persistentResourcesBasePath string, baseUri string) {
 	resourceFilesIndex := make(dto.PublicFilesIndex)
 	totalSizeBytes := uint64(0)
 	err := filepath.Walk(persistentResourcesBasePath,
@@ -389,6 +393,52 @@ func (f flowServe) writeResourcesIndex(transferSession *serve.TransferSession, r
 		pterm.Fatal.Printfln("could not update Resource dump metadata: %s", err)
 	}
 	pterm.Info.Printfln("Extracted Resource Index")
+}
+
+func (f flowServe) extractResourcesFromFolderSkippingThumbnails(transferSession *serve.TransferSession, db *sql.DB, persistentTarget *flowResourceTarget, whereClauseForTables map[string]string) {
+	extraWhereClause := "true"
+	if len(whereClauseForTables["neos_flow_resourcemanagement_persistentresource"]) > 0 {
+		extraWhereClause = whereClauseForTables["neos_flow_resourcemanagement_persistentresource"]
+	}
+	resourceFilesIndex := make(dto.PublicFilesIndex)
+	totalSizeBytes := uint64(0)
+	q := fmt.Sprintf(`
+		SELECT
+			sha1, filename, filesize
+		FROM
+			neos_flow_resourcemanagement_persistentresource
+		WHERE collectionname = 'persistent' AND %s`, extraWhereClause)
+
+	rows, err := db.Query(q)
+	if err != nil {
+		pterm.Fatal.Printfln("could query for resources: %s", err)
+	}
+	defer rows.Close()
+
+	var resourceSha1, filename string
+	var filesize uint64
+	for rows.Next() {
+		err := rows.Scan(&resourceSha1, &filename, &filesize)
+		if err != nil {
+			pterm.Fatal.Printfln("error loading DB row: %s", err)
+		}
+
+		totalSizeBytes += filesize
+		escapedFileName := url.PathEscape(filename)
+		// HACK: this is how it works for Neos / Flow. Probably not all escapes done
+		escapedFileName = strings.ReplaceAll(escapedFileName, "+", "%2B")
+		resourceFilesIndex["Resources/"+resourceSha1[0:1]+"/"+resourceSha1[1:2]+"/"+resourceSha1[2:3]+"/"+resourceSha1[3:4]+"/"+resourceSha1] = dto.PublicFilesIndexEntry{
+			SizeBytes: int64(filesize),
+			MTime:     0,
+			PublicUri: "<BASE>/" + persistentTarget.TargetOptions.BaseUri + resourceSha1[0:1] + "/" + resourceSha1[1:2] + "/" + resourceSha1[2:3] + "/" + resourceSha1[3:4] + "/" + resourceSha1 + "/" + escapedFileName,
+		}
+	}
+	err = rows.Err()
+	if err != nil {
+		pterm.Fatal.Printfln("error iterating rows: %s", err)
+	}
+
+	f.writeResourcesIndex(transferSession, resourceFilesIndex, totalSizeBytes)
 }
 
 func NewFlowFramework() common.ServeFramework {
