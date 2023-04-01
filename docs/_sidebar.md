@@ -1,4 +1,5 @@
 - [Getting started](README.md)
+- [What's New](whats-new.md)
 - [Architecture](architecture.md)
 ---
 

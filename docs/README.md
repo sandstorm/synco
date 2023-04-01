@@ -72,7 +72,8 @@ Features:
 * **Auto-Detects frameworks**, so it knows how to connect to the database. Supported right now:
   * **Neos / Flow Applications**
     * with local Resources
-    * (planned) with resources stored in S3
+    * **NEW [since 1.2.0](./whats-new.md): with resources stored in S3**
+    * **NEW [since 1.2.0](./whats-new.md): Smart Transfer - not downloading thumbnail resources for up to 80% size reduction.** 
   * (later, other frameworks will be added here)
 * **multiple file-sets** supported. This means you can choose to only sync your database, but not your binary resources/assets.
 * **Speed Optimized**: publicly available binary assets are not zipped extra; but the already-public files are simply downloaded.
@@ -101,6 +102,11 @@ curl https://sandstorm.github.io/synco/serve | sh -s -
 
 # for verbose mode, run with "--debug" at the end.
 curl https://sandstorm.github.io/synco/serve | sh -s - --debug
+
+# for downloading ALL files and ALL database tables (including things
+# like thumbnails which can be regenerated on the client)
+curl https://sandstorm.github.io/synco/serve | sh -s - --all
+
 
 # For Neos/Flow: To use a specific Flow context, do the following:
 export FLOW_CONTEXT=Production
