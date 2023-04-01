@@ -12,6 +12,7 @@ import (
 	"github.com/sandstorm/synco/pkg/util/mysql"
 	"gopkg.in/yaml.v3"
 	"log"
+	"net/url"
 	"os"
 	"os/exec"
 	"path"
@@ -290,16 +291,21 @@ func (f flowServe) extractResources(transferSession *serve.TransferSession, pers
 				return err
 			}
 
-			filePath = strings.TrimPrefix(filePath, persistentResourcesBasePath) + baseUri
+			filePath = strings.TrimPrefix(filePath, persistentResourcesBasePath)
 
 			// Flow stores files in /..../<resourceSha1>/<filename>.jpg; so we extract the resourceSha1 here.
 			resourceSha1 := path.Base(path.Dir(filePath))
+
+			publicUri, err := url.JoinPath(baseUri, filePath)
+			if err != nil {
+				return err
+			}
 
 			totalSizeBytes += uint64(realFileInfo.Size())
 			resourceFilesIndex["Resources/"+resourceSha1[0:1]+"/"+resourceSha1[1:2]+"/"+resourceSha1[2:3]+"/"+resourceSha1[3:4]+"/"+resourceSha1] = dto.PublicFilesIndexEntry{
 				SizeBytes: int64(realFileInfo.Size()),
 				MTime:     realFileInfo.ModTime().Unix(),
-				PublicUri: "<BASE>/" + filePath,
+				PublicUri: "<BASE>/" + publicUri,
 			}
 			return nil
 		})
@@ -342,7 +348,7 @@ func (f flowServe) extractResourcesFromS3(transferSession *serve.TransferSession
 		resourceFilesIndex["Resources/"+resourceSha1[0:1]+"/"+resourceSha1[1:2]+"/"+resourceSha1[2:3]+"/"+resourceSha1[3:4]+"/"+resourceSha1] = dto.PublicFilesIndexEntry{
 			SizeBytes: int64(filesize),
 			MTime:     0,
-			PublicUri: persistentTarget.TargetOptions.BaseUri + resourceSha1 + "/" + filename,
+			PublicUri: persistentTarget.TargetOptions.BaseUri + resourceSha1 + "/" + url.PathEscape(filename),
 		}
 	}
 	err = rows.Err()

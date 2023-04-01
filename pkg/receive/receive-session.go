@@ -2,6 +2,8 @@ package receive
 
 import (
 	"bytes"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"filippo.io/age"
@@ -42,6 +44,34 @@ func newHttpClient() *http.Client {
 		Proxy:               http.ProxyFromEnvironment,
 		Dial:                dialer.Dial,
 		TLSHandshakeTimeout: 10 * time.Second,
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: true,
+			VerifyConnection: func(cs tls.ConnectionState) error {
+				// default verification, as taken from https://github.com/golang/go/issues/36736#issuecomment-587932687
+				opts := x509.VerifyOptions{
+					DNSName:       cs.ServerName,
+					Intermediates: x509.NewCertPool(),
+				}
+				for _, cert := range cs.PeerCertificates[1:] {
+					opts.Intermediates.AddCert(cert)
+				}
+				_, err := cs.PeerCertificates[0].Verify(opts)
+				if err != nil {
+					pterm.Warning.Printfln("SSL certificate validation failed for %s: %s", cs.ServerName, err)
+					pterm.Warning.Printfln("Do you want to connect nevertheless?")
+					ignoreInsecureCertificate, customErr := pterm.DefaultInteractiveConfirm.
+						WithDefaultValue(false).
+						Show("Connect despite SSL Certificate Error?")
+					if ignoreInsecureCertificate {
+						return nil
+					}
+					if customErr != nil {
+						return customErr
+					}
+				}
+				return err
+			},
+		},
 	}
 
 	client := http.Client{

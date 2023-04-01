@@ -269,5 +269,5 @@ func downloadPublicFiles(receiveSession *receive.ReceiveSession, fileSet *dto.Fi
 }
 
 func init() {
-	ReceiveCmd.Flags().BoolVar(&interactive, "interactive", true, "identifier for the decryption")
+	ReceiveCmd.Flags().BoolVar(&interactive, "interactive", true, "interactively select which files to download")
 }
