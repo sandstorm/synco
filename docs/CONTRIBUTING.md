@@ -9,6 +9,18 @@ as it might happen that a pull request slips through.
 Simply have a modern Go version installed; check out the project somewhere (NOT in $GOPATH, as we use Go Modules),
 and then run `make`.
 
+### ... with a public network
+
+for testing with locally built synco-lite versions, you can use `sish`:
+
+```bash
+# now, build synco for Linux
+GOOS=linux GOARCH=amd64 make synco-lite
+
+# on the remote system, upload synco
+scp build/synco-lite .....
+```
+
 ## Releasing new versions
 
 ### Prerequisites for releasing

@@ -251,6 +251,9 @@ func downloadPublicFiles(receiveSession *receive.ReceiveSession, fileSet *dto.Fi
 			return fmt.Errorf("error calling stat on %s: %w", fileName, err)
 		}
 
+		// the default base URL is the transfer session, which is by convention placed INSIDE the web root.
+		// so we need to go one level up when finding <BASE>
+		// TODO: this is a bit brittle - but for now it works.
 		err = receiveSession.DumpFileWithProgressBar(strings.ReplaceAll(fileDefinition.PublicUri, "<BASE>", ".."), fileName, progress)
 		if err != nil {
 			return fmt.Errorf("error on downloading %s to %s: %w", fileDefinition.PublicUri, fileName, err)
