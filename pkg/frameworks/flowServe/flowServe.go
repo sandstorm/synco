@@ -345,10 +345,13 @@ func (f flowServe) extractResourcesFromS3(transferSession *serve.TransferSession
 		}
 
 		totalSizeBytes += filesize
+		escapedFileName := url.PathEscape(filename)
+		// HACK: this is how it works for Neos / Flow. Probably not all escapes done
+		escapedFileName = strings.ReplaceAll(escapedFileName, "+", "%2B")
 		resourceFilesIndex["Resources/"+resourceSha1[0:1]+"/"+resourceSha1[1:2]+"/"+resourceSha1[2:3]+"/"+resourceSha1[3:4]+"/"+resourceSha1] = dto.PublicFilesIndexEntry{
 			SizeBytes: int64(filesize),
 			MTime:     0,
-			PublicUri: persistentTarget.TargetOptions.BaseUri + resourceSha1 + "/" + url.PathEscape(filename),
+			PublicUri: persistentTarget.TargetOptions.BaseUri + resourceSha1 + "/" + escapedFileName,
 		}
 	}
 	err = rows.Err()
