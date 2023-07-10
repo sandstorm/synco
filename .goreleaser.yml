@@ -94,6 +94,20 @@ archives:
         format: zip
 
   # synco-lite, without zip file.
+  # needed for "curl https://synco.github.io/synco | sh" script to work
+  - id: synco_not_zipped
+    format: binary
+    builds:
+      - synco
+    name_template: 'synco-lite_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}'
+    replacements:
+      darwin: Darwin
+      linux: Linux
+      windows: Windows
+      386: i386
+      amd64: x86_64
+
+  # synco-lite, without zip file.
   # needed for "curl https://synco.github.io/serve | sh" script to work
   - id: synco-lite
     format: binary

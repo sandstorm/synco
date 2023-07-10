@@ -141,6 +141,8 @@ On the second host, where you want to download to, you can run synco without ins
 
 ```sh
 curl https://sandstorm.github.io/synco/synco | sh -s - <your-synco-arguments-as-shown-from-the-other-command-output>
+# for example
+curl https://sandstorm.github.io/synco/synco | sh -s - receive ts-...... ..........
 ```
 
 # License
