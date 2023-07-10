@@ -26,10 +26,11 @@
 ----
 
 <!-- TOC -->
-* [Features](#features)
-* [Installation](#installation)
-* [Usage](#usage)
-* [License](#license)
+- [Features](#features)
+- [Installation](#installation)
+- [Usage](#usage)
+- [Usage Server-to-Server](#usage-server-to-server)
+- [License](#license)
 <!-- TOC -->
 * [Architecture](https://sandstorm.github.io/synco/#/architecture)
 
@@ -131,6 +132,16 @@ To download the dump, **on your local machine**, you run the CLI call printed ou
 > This makes Synco more quick to run on the server side, where the tool is downloaded at first use.
 >
 > `synco` is the tool which contains all features, but comes with a bigger package size.
+
+# Usage Server-to-Server
+
+On the first host (where you want to download from), run the synco command as usual (see above).
+
+On the second host, where you want to download to, you can run synco without installing it like this:
+
+```sh
+curl https://sandstorm.github.io/synco/synco | sh -s - <your-synco-arguments-as-shown-from-the-other-command-output>
+```
 
 # License
 

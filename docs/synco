@@ -1,0 +1,32 @@
+#!/usr/bin/env sh
+set -ex
+
+# USAGE: curl https://sandstorm.github.io/synco/synco | sh -s - <synco-arguments-here>
+# USAGE: curl https://sandstorm.github.io/synco/synco | sh -s - --help
+
+BIN_TARGET="synco"
+
+echo "This downloads and executes '$BIN_TARGET $@' in the current directory."
+
+if [ ! -f "$BIN_TARGET" ]; then
+  OS_TYPE=$(uname -s)
+  ARCH_TYPE=$(uname -m)
+
+  if [ "$OS_TYPE" = "FreeBSD" ]; then
+    if [ "$ARCH_TYPE" = "amd64" ]; then
+      # inconsistency between platforms: on Linux, the architecture reports as x86_64.
+      # on FreeBSD, it reports as amd64.
+      #
+      # we use the linux convention as filename convention; so we need to map the FreeBSD convention to
+      # the Linux convention (amd64 => x86_64)
+      ARCH_TYPE=x86_64
+    fi
+  fi
+
+  DOWNLOAD_LINK="https://github.com/sandstorm/synco/releases/latest/download/synco_${OS_TYPE}_${ARCH_TYPE}"
+  echo "Downloading $DOWNLOAD_LINK"
+  curl -L -o $BIN_TARGET "$DOWNLOAD_LINK"
+  chmod +x $BIN_TARGET
+fi
+
+./$BIN_TARGET $@
