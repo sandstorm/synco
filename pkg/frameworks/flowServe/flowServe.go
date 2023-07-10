@@ -84,11 +84,16 @@ type flowResourceTarget struct {
 		// f.e. /Users/sebastian/src/neos-90/Web/_Resources/Persistent/
 		Path string `yaml:"path"`
 		// f.e. _Resources/Persistent/ - or
-		// https://cdn.yourwebsite.de/resources/' for S3Target
+		// **for Flownative\Aws\S3\S3Target**:
+		//    f.e. https://cdn.yourwebsite.de/resources/'
+		// **for Flownative\Google\CloudStorage\GcsTarget**:
+		//    f.e. /_Resources/Persistent/
 		BaseUri string `yaml:"baseUri"`
 
-		// **for Flownative\Aws\S3\S3Target**
-		// f.e. prod-neos-cdn
+		// **for Flownative\Aws\S3\S3Target**:
+		//    f.e. prod-neos-cdn
+		// **for Flownative\Google\CloudStorage\GcsTarget**:
+		//    f.e. public.instance-00000-999999-1111111111.euw1.beach.flownative.cloud
 		Bucket string `yaml:"bucket"`
 		// f.e. resources/ - see BaseUri
 		KeyPrefix string `yaml:"keyPrefix"`
@@ -97,6 +102,10 @@ type flowResourceTarget struct {
 
 func (t flowResourceTarget) IsS3Target() bool {
 	return t.Target == "Flownative\\Aws\\S3\\S3Target"
+}
+
+func (t flowResourceTarget) IsGoogleCloudStorageTarget() bool {
+	return t.Target == "Flownative\\Google\\CloudStorage\\GcsTarget"
 }
 
 func (t flowResourceTarget) IsFileSystemTarget() bool {
@@ -164,6 +173,9 @@ func (f flowServe) Serve(transferSession *serve.TransferSession) {
 		// fallback to extracting resources from default location
 		f.extractAllResourcesFromFolder(transferSession, "./Web/_Resources/Persistent", "_Resources/Persistent")
 	} else if persistentTarget.IsS3Target() {
+		pterm.Info.Printfln("Extracting resources for S3Target (baseUri=%s)", persistentTarget.TargetOptions.BaseUri)
+		f.extractResourcesFromS3(transferSession, db, persistentTarget, whereClauseForTables)
+	} else if persistentTarget.IsGoogleCloudStorageTarget() {
 		pterm.Info.Printfln("Extracting resources for S3Target (baseUri=%s)", persistentTarget.TargetOptions.BaseUri)
 		f.extractResourcesFromS3(transferSession, db, persistentTarget, whereClauseForTables)
 	} else if persistentTarget.IsFileSystemTarget() {
