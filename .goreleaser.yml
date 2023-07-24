@@ -80,15 +80,14 @@ changelog:
 archives:
   # zip etc for everybody
   - id: synco
-    name_template: '{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}'
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
     builds:
       - synco
-    replacements:
-      darwin: Darwin
-      linux: Linux
-      windows: Windows
-      386: i386
-      amd64: x86_64
     format_overrides:
       - goos: windows
         format: zip
@@ -99,13 +98,12 @@ archives:
     format: binary
     builds:
       - synco
-    name_template: 'synco_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}'
-    replacements:
-      darwin: Darwin
-      linux: Linux
-      windows: Windows
-      386: i386
-      amd64: x86_64
+    name_template: >-
+      synco_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
 
   # synco-lite, without zip file.
   # needed for "curl https://synco.github.io/serve | sh" script to work
@@ -113,13 +111,12 @@ archives:
     format: binary
     builds:
       - synco-lite
-    name_template: 'synco-lite_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}'
-    replacements:
-      darwin: Darwin
-      linux: Linux
-      windows: Windows
-      386: i386
-      amd64: x86_64
+    name_template: >-
+      synco-lite_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
 
 brews:
   # homebrew should install the full synco script.
