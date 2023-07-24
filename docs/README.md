@@ -133,6 +133,24 @@ To download the dump, **on your local machine**, you run the CLI call printed ou
 >
 > `synco` is the tool which contains all features, but comes with a bigger package size.
 
+## Configuration
+
+Synco tries to detect as many settings as possible by inspecting the the environment in which it runs.
+
+If this auto-detection does not properly work, you can set environment variables to control the `synco serve` behavior.
+
+**Supported environment variables:**
+
+- `PHP`: Path to the PHP interpreter
+- `FLOW_CONTEXT`: the Neos/Flow context to use for extracting the database credentials
+
+**Example**:
+
+```bash
+export PHP=/your/path/to/php
+curl https://sandstorm.github.io/synco/serve | sh -s -
+```
+
 # Usage Server-to-Server
 
 On the first host (where you want to download from), run the synco command as usual (see above).

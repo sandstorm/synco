@@ -229,8 +229,15 @@ func (f flowServe) extractResourceConfigFromFlow() flowResourceOptions {
 }
 
 func (f flowServe) readFlowSettings(path string) string {
-	cmd := exec.Command("./flow", "configuration:show", "--type", "Settings", "--path", path)
-	output, err := util.RunWrappedCommand(cmd)
+	// try to auto-detect PHP versions by trying different PHP interpreters
+	cmd := exec.Command("sh", "-c", fmt.Sprintf("./flow configuration:show --type Settings --path %s || php82 flow configuration:show --type Settings --path %s || php81 flow configuration:show --type Settings --path %s || php80 flow configuration:show --type Settings --path %s || php74 flow configuration:show --type Settings --path %s || php8.2 flow configuration:show --type Settings --path %s || php8.1 flow configuration:show --type Settings --path %s || php8.0 flow configuration:show --type Settings --path %s || php7.4 flow configuration:show --type Settings --path %s", path, path, path, path, path, path, path, path, path))
+	php := os.Getenv("PHP")
+	if php != "" {
+		// in case the PHP version is specified via the "$PHP" env var, we take this one.
+		cmd = exec.Command(php, "flow", "configuration:show", "--type", "Settings", "--path", path)
+	}
+
+	output, _, err := util.RunWrappedCommand(cmd)
 	if err != nil {
 		pterm.Fatal.Printfln("./flow configuration:show did not succeed: %s", err)
 	}

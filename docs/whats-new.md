@@ -1,5 +1,17 @@
 # What's New
 
+## Version 1.3.0 (24. July 2023) - work with different PHP versions
+
+With this release, we auto-detect the correct PHP version to use during `synco serve`.
+
+If needed, you can override the PHP version by setting the `PHP` environment variable to the PHP interpreter,
+e.g.:
+
+```bash
+export PHP=/my/special/path/to/php
+# synco serve command as usual
+```
+
 ## Version 1.2.0 (01. April 2023) - Big improvements for large instances of Neos/Flow
 
 This release features numerous important quality-of-life improvements for large instances of Neos
