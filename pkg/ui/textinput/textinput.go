@@ -5,7 +5,9 @@ package textinput
 
 import (
 	"fmt"
+	"github.com/pterm/pterm"
 	"log"
+	"os"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -13,7 +15,7 @@ import (
 
 func Exec(question string) string {
 	p := tea.NewProgram(initialModel(question))
-	m, err := p.Run();
+	m, err := p.Run()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -55,8 +57,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.Type {
-		case tea.KeyEnter, tea.KeyCtrlC, tea.KeyEsc:
+		case tea.KeyEnter:
 			return m, tea.Quit
+		case tea.KeyCtrlC, tea.KeyEsc:
+			pterm.Warning.Println("Exiting")
+			os.Exit(1)
 		}
 
 	// We handle errors just like any other message
