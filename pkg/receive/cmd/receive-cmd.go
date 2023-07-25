@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/manifoldco/promptui"
 	"github.com/pterm/pterm"
 	"github.com/repeale/fp-go"
 	"github.com/sandstorm/synco/pkg/common/config"
@@ -137,7 +138,14 @@ func detectBaseUrlAndUpdateReceiveSession(rs *receive.ReceiveSession) error {
 	//////////////////// MANUAL ENTRY
 	for true {
 		// auto-detection did not work; so we need to ask the user for the hostname.
-		baseUrlCandidate, _ := pterm.DefaultInteractiveTextInput.Show("Base URL")
+		prompt := promptui.Prompt{
+			Label: "Base URL",
+		}
+		baseUrlCandidate, err := prompt.Run()
+		if err != nil {
+			pterm.Warning.Printfln("Aborting: %s", err)
+			os.Exit(1)
+		}
 		baseUrlCandidate = strings.TrimSpace(baseUrlCandidate)
 		originalBaseUrlCandidate := strings.TrimSuffix(baseUrlCandidate, "/")
 		// the user can enter the URL with or without http/https prefix, and with or without www. prefix.
