@@ -5,12 +5,11 @@ package textinput
 
 import (
 	"fmt"
+	"github.com/charmbracelet/bubbles/textinput"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/pterm/pterm"
 	"log"
 	"os"
-
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
 )
 
 func Exec(question string) string {
@@ -20,6 +19,10 @@ func Exec(question string) string {
 		log.Fatal(err)
 	}
 	mCasted := m.(model)
+	if mCasted.err != nil {
+		pterm.Warning.Printfln("Exiting: %s", mCasted.err)
+		os.Exit(1)
+	}
 	return mCasted.textInput.Value()
 }
 
@@ -60,8 +63,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case tea.KeyEnter:
 			return m, tea.Quit
 		case tea.KeyCtrlC, tea.KeyEsc:
-			pterm.Warning.Println("Exiting")
-			os.Exit(1)
+			m.err = fmt.Errorf("EXITING")
+			return m, tea.Quit
 		}
 
 	// We handle errors just like any other message
