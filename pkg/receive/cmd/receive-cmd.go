@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"atomicgo.dev/keyboard/keys"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,6 +9,8 @@ import (
 	"github.com/sandstorm/synco/pkg/common/config"
 	"github.com/sandstorm/synco/pkg/common/dto"
 	"github.com/sandstorm/synco/pkg/receive"
+	"github.com/sandstorm/synco/pkg/ui/boolselect"
+	"github.com/sandstorm/synco/pkg/ui/multiselect"
 	"github.com/sandstorm/synco/pkg/ui/textinput"
 	"github.com/spf13/cobra"
 	"net/url"
@@ -60,17 +61,7 @@ var ReceiveCmd = &cobra.Command{
 		})(meta.FileSets)
 
 		if interactive {
-			filesToDownload, err = pterm.DefaultInteractiveMultiselect.
-				WithDefaultText("Select data to download").
-				WithOptions(filesToDownload).
-				WithDefaultOptions(filesToDownload).
-				WithKeySelect(keys.Space).
-				WithKeyConfirm(keys.Enter).
-				WithFilter(false).
-				Show()
-			if err != nil {
-				pterm.Fatal.Printfln("File Selector could not be shown: %s", err)
-			}
+			filesToDownload = multiselect.Exec("Select data to download", filesToDownload, filesToDownload)
 		}
 
 		for _, fileToDownload := range filesToDownload {
@@ -168,10 +159,9 @@ func detectBaseUrlAndUpdateReceiveSession(rs *receive.ReceiveSession) error {
 			if err == nil {
 				// we found the meta file; so we are done.
 				pterm.Success.Printfln("Found correct base URL at %s.", candidate)
-				updateSyncoYmlFile, err := pterm.DefaultInteractiveConfirm.WithDefaultValue(true).Show("Update .synco.yml file?")
-				if err != nil {
-					pterm.Fatal.Printfln("Confirm could not be shown: %s", err)
-				}
+
+				updateSyncoYmlFile := boolselect.Exec("Update .synco.yml file?", true)
+
 				if updateSyncoYmlFile {
 					pterm.Debug.Printfln("Updating %s file with host %s", config.SyncoYamlFile, candidate)
 					syncoConfig.Hosts = append(syncoConfig.Hosts, config.SyncoHostConfig{

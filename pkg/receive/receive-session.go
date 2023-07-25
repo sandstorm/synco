@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"github.com/pterm/pterm"
 	"github.com/sandstorm/synco/pkg/common/dto"
+	"github.com/sandstorm/synco/pkg/ui/boolselect"
 	"io"
 	"net"
 	"net/http"
@@ -59,14 +60,10 @@ func newHttpClient() *http.Client {
 				if err != nil {
 					pterm.Warning.Printfln("SSL certificate validation failed for %s: %s", cs.ServerName, err)
 					pterm.Warning.Printfln("Do you want to connect nevertheless?")
-					ignoreInsecureCertificate, customErr := pterm.DefaultInteractiveConfirm.
-						WithDefaultValue(false).
-						Show("Connect despite SSL Certificate Error?")
+
+					ignoreInsecureCertificate := boolselect.Exec("Connect despite SSL Certificate Error?", false)
 					if ignoreInsecureCertificate {
 						return nil
-					}
-					if customErr != nil {
-						return customErr
 					}
 				}
 				return err
