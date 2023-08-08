@@ -14,6 +14,7 @@ var identifier string
 var password string
 var listen string
 var all bool
+var keep bool
 
 var ServeCmd = &cobra.Command{
 	Use:   "serve",
@@ -43,27 +44,32 @@ and figures out what to extract. Depending on the framework, the system might NO
 			}
 		}
 
-		progressbar, err := pterm.DefaultProgressbar.WithTotal(3).Start()
 		pterm.PrintOnErrorf("Error initializing progress bar: %e", err)
 
 		pterm.Debug.Printfln("Detecting Frameworks")
 
 		for _, framework := range RegisteredFrameworks {
-			progressbar.Add(1)
 			pterm.Debug.Printfln("Checking for %s framework", framework.Name())
 			if framework.Detect() {
 				pterm.Info.Printfln("Found %s framework.", framework.Name())
-				transferSession, err := serve.NewSession(identifier, password, listen, all, sigs)
+				transferSession, err := serve.NewSession(identifier, password, listen, all, keep, sigs)
 				if err != nil {
 					pterm.Fatal.Printfln("Error creating transfer session: %s", err)
 				}
 
 				framework.Serve(transferSession)
-				pterm.Debug.Printfln("Waiting for ctrl-c")
 
-				// done will never be fired; we'll wait forever here.
-				<-done
-				return
+				if keep {
+					// TODO: Maybe offer flag or command to clean up manually -> e.g. synco serve --cleanup or synco cleanup ???
+					// -> however, if you choose to keep the files you are responsible for cleaning up
+					pterm.Debug.Printfln("Running with --keep flag. No automatic cleanup.")
+					os.Exit(0)
+				} else {
+					pterm.Debug.Printfln("Waiting for ctrl-c")
+					// done will never be fired; we'll wait forever here.
+					<-done
+					return
+				}
 			}
 		}
 
@@ -77,5 +83,6 @@ func init() {
 	ServeCmd.Flags().StringVar(&identifier, "id", "", "identifier for the decryption")
 	ServeCmd.Flags().StringVar(&password, "password", "", "password to encrypt the files for")
 	ServeCmd.Flags().StringVar(&listen, "listen", "", "port to create a HTTP server on, if any")
+	ServeCmd.Flags().BoolVar(&keep, "keep", false, "exit after successful encryption, no automatic cleanup")
 	ServeCmd.Flags().BoolVar(&all, "all", false, "Should dump EVERYTHING? (depending on framework)")
 }

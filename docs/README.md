@@ -163,6 +163,10 @@ curl https://sandstorm.github.io/synco/synco | sh -s - <your-synco-arguments-as-
 curl https://sandstorm.github.io/synco/synco | sh -s - receive ts-...... ..........
 ```
 
+# Development
+
+* if you are developing synco in a Docker container this will be helpful for building `GOOS=linux go build`
+
 # License
 
 This project is licensed under the MIT license.

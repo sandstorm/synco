@@ -14,7 +14,7 @@ import (
 
 type TransferSession struct {
 	Identifier string
-	workDir    *string
+	WorkDir    *string
 	Password   string
 	// Meta data to be written. Call UpdateMetadata() after changing this!!
 	Meta      *dto.Meta
@@ -25,8 +25,9 @@ type TransferSession struct {
 	httpSrv *http.Server
 
 	// Termination signals
-	sigs    chan os.Signal
-	DumpAll bool
+	sigs      chan os.Signal
+	DumpAll   bool
+	KeepFiles bool
 }
 
 func (ts *TransferSession) WithFrameworkAndWebDirectory(frameworkName string, webDirectory string) error {
@@ -36,7 +37,7 @@ func (ts *TransferSession) WithFrameworkAndWebDirectory(frameworkName string, we
 	if err != nil {
 		return err
 	}
-	ts.workDir = &workDir
+	ts.WorkDir = &workDir
 
 	if len(ts.listen) > 0 {
 		// the user requested to start a HTTP server as well.
@@ -59,7 +60,7 @@ func (ts *TransferSession) WithFrameworkAndWebDirectory(frameworkName string, we
 	return nil
 }
 
-func NewSession(identifier string, password string, listen string, all bool, sigs chan os.Signal) (*TransferSession, error) {
+func NewSession(identifier string, password string, listen string, all bool, keep bool, sigs chan os.Signal) (*TransferSession, error) {
 	if len(password) == 0 {
 		return nil, fmt.Errorf("empty password")
 	}
@@ -75,9 +76,10 @@ func NewSession(identifier string, password string, listen string, all bool, sig
 		Meta: &dto.Meta{
 			State: dto.STATE_CREATED,
 		},
-		Identifier: "ts-" + identifier,
+		Identifier: "synco-" + identifier,
 		Password:   password,
 		DumpAll:    all,
+		KeepFiles:  keep,
 		recipient:  recipient,
 		listen:     listen,
 		sigs:       sigs,
@@ -86,7 +88,7 @@ func NewSession(identifier string, password string, listen string, all bool, sig
 	go func() {
 		<-sigs
 		pterm.Info.Printfln("Cleaning up...")
-		_ = os.RemoveAll(*m.workDir)
+		_ = os.RemoveAll(*m.WorkDir)
 		pterm.Info.Printfln("Cleanup Completed.")
 		os.Exit(0)
 	}()
@@ -132,7 +134,7 @@ func (ts *TransferSession) EncryptBytesToFile(fileName string, contents []byte) 
 }
 
 func (ts *TransferSession) filepathInWorkDir(fileName string) string {
-	return filepath.Join(*ts.workDir, fileName)
+	return filepath.Join(*ts.WorkDir, fileName)
 }
 
 func (ts *TransferSession) EncryptToFile(fileName string) (WriteCloserWithSize, error) {

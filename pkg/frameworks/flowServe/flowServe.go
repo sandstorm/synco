@@ -63,8 +63,8 @@ func (o *flowResourceOptions) FindPersistentTarget() *flowResourceTarget {
 
 	for key, target := range o.Targets {
 		if key == persistentTargetName {
-			pterm.Info.Printfln("target '%s' is configured as follows: '%+v'", persistentTargetName, target)
-
+			pterm.Info.Printfln("target '%s' is configured as follows:", persistentTargetName)
+			pterm.Info.Printfln("  '%s'", target)
 			return &target
 		}
 	}
@@ -199,7 +199,16 @@ func (f flowServe) Serve(transferSession *serve.TransferSession) {
 	pterm.Success.Printfln("")
 	pterm.Success.Printfln("          synco receive %s %s", transferSession.Identifier, transferSession.Password)
 	pterm.Success.Printfln("")
-	pterm.Success.Printfln("When you are finished, stop the server by pressing Ctrl-C.")
+
+	if !transferSession.KeepFiles {
+		pterm.Success.Printfln("When you are finished, stop the server by pressing Ctrl-C")
+		pterm.Success.Printfln("to have synco clean up your files.")
+	} else {
+		pterm.Success.Printfln("You are finished.")
+		pterm.Warning.Printfln("Syno will --keep the file '%s'.", *transferSession.WorkDir)
+		pterm.Warning.Printfln("You will have to remove it manually!!!")
+	}
+
 	pterm.Success.Printfln("")
 	pterm.Success.Printfln("=================================================================================")
 	pterm.Success.Printfln("")
