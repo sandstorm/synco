@@ -304,11 +304,12 @@ func (f flowServe) extractAllResourcesFromFolder(transferSession *serve.Transfer
 
 			realPath, err := filepath.EvalSymlinks(filePath)
 			if err != nil {
-				return err
+				pterm.Error.Printfln("Could NOT evaluate symlinks (skipping): %s: %s", filePath, err)
+				return nil
 			}
 			realFileInfo, err := os.Lstat(realPath)
 			if err != nil {
-				pterm.Error.Printfln("Could NOT read file (skipping): %s: %s", realPath, err)
+				pterm.Error.Printfln("Could NOT read file info (skipping): %s: %s", realPath, err)
 				return nil
 			}
 
