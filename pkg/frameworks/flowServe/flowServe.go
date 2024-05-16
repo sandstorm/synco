@@ -308,7 +308,8 @@ func (f flowServe) extractAllResourcesFromFolder(transferSession *serve.Transfer
 			}
 			realFileInfo, err := os.Lstat(realPath)
 			if err != nil {
-				return err
+				pterm.Error.Printfln("Could NOT read file (skipping): %s: %s", realPath, err)
+				return nil
 			}
 
 			filePath = strings.TrimPrefix(filePath, persistentResourcesBasePath)
