@@ -195,9 +195,13 @@ func (f flowServe) Serve(transferSession *serve.TransferSession) {
 		pterm.Success.Printfln("In case you want to dump all tables, run with --all.")
 	}
 
-	pterm.Success.Printfln("READY: Execute the following command locally to download the dump:")
+	pterm.Success.Printfln("READY: Execute the following command on the target system to download the dump:")
 	pterm.Success.Printfln("")
+	pterm.Success.Printfln("          # locally: ")
 	pterm.Success.Printfln("          synco receive %s %s", transferSession.Identifier, transferSession.Password)
+	pterm.Success.Printfln("")
+	pterm.Success.Printfln("          # on another server:")
+	pterm.Success.Printfln("          curl https://sandstorm.github.io/synco/synco | sh -s - receive %s %s", transferSession.Identifier, transferSession.Password)
 	pterm.Success.Printfln("")
 
 	if !transferSession.KeepFiles {
