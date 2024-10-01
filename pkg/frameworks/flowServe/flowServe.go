@@ -131,7 +131,7 @@ func (f flowServe) Serve(transferSession *serve.TransferSession) {
 		pterm.Fatal.Printfln("Error writing transferSession: %s", err)
 	}
 
-	flowPersistence := f.extractDatabaseCredentialsFromFlow()
+	flowPersistence := extractDatabaseCredentialsFromFlow()
 	whereClauseForTables := map[string]string{
 		// event log can be HUGE and is usually not needed.
 		"neos_neos_eventlog_domain_model_event": "FALSE",
@@ -152,7 +152,7 @@ func (f flowServe) Serve(transferSession *serve.TransferSession) {
 		whereClauseForTables = map[string]string{}
 	}
 	db := commonServe.DatabaseDump(transferSession, flowPersistence.ToDbCredentials(), whereClauseForTables)
-	flowResourceConfig := f.extractResourceConfigFromFlow()
+	flowResourceConfig := extractResourceConfigFromFlow()
 	persistentTarget := flowResourceConfig.FindPersistentTarget()
 
 	if persistentTarget == nil {
@@ -161,14 +161,14 @@ func (f flowServe) Serve(transferSession *serve.TransferSession) {
 		commonServe.ExtractAllResourcesFromFolder(transferSession, "./Web/_Resources/Persistent", "_Resources/Persistent")
 	} else if persistentTarget.IsS3Target() {
 		pterm.Info.Printfln("Extracting resources for S3Target (baseUri=%s)", persistentTarget.TargetOptions.BaseUri)
-		f.extractResourcesFromS3(transferSession, db, persistentTarget, whereClauseForTables)
+		extractResourcesFromS3(transferSession, db, persistentTarget, whereClauseForTables)
 	} else if persistentTarget.IsFileSystemTarget() {
 		if transferSession.DumpAll {
 			pterm.Info.Printfln("Extracting ALL resources for FileSystemTarget (path=%s, baseUri=%s)", persistentTarget.TargetOptions.Path, persistentTarget.TargetOptions.BaseUri)
 			commonServe.ExtractAllResourcesFromFolder(transferSession, persistentTarget.TargetOptions.Path, persistentTarget.TargetOptions.BaseUri)
 		} else {
 			pterm.Info.Printfln("Extracting resources (but skipping thumbnails) for FileSystemTarget (path=%s, baseUri=%s)", persistentTarget.TargetOptions.Path, persistentTarget.TargetOptions.BaseUri)
-			f.extractResourcesFromFolderSkippingThumbnails(transferSession, db, persistentTarget, whereClauseForTables)
+			extractResourcesFromFolderSkippingThumbnails(transferSession, db, persistentTarget, whereClauseForTables)
 		}
 	} else {
 		pterm.Fatal.Printfln("unknown persistent target type '%s'", persistentTarget.Target)
@@ -191,32 +191,16 @@ func (f flowServe) Serve(transferSession *serve.TransferSession) {
 		pterm.Success.Printfln("In case you want to dump all tables, run with --all.")
 	}
 
-	pterm.Success.Printfln("READY: Execute the following command on the target system to download the dump:")
-	pterm.Success.Printfln("")
-	pterm.Success.Printfln("          # locally: ")
-	pterm.Success.Printfln("          synco receive %s %s", transferSession.Identifier, transferSession.Password)
-	pterm.Success.Printfln("")
-	pterm.Success.Printfln("          # on another server:")
-	pterm.Success.Printfln("          curl https://sandstorm.github.io/synco/synco | sh -s - receive %s %s", transferSession.Identifier, transferSession.Password)
-	pterm.Success.Printfln("")
-
-	if !transferSession.KeepFiles {
-		pterm.Success.Printfln("When you are finished, stop the server by pressing Ctrl-C")
-		pterm.Success.Printfln("to have synco clean up your files.")
-	} else {
-		pterm.Success.Printfln("You are finished.")
-		pterm.Warning.Printfln("Syno will --keep the file '%s'.", *transferSession.WorkDir)
-		pterm.Warning.Printfln("You will have to remove it manually!!!")
-	}
+	transferSession.RenderConnectCommand()
 
 	pterm.Success.Printfln("")
 	pterm.Success.Printfln("=================================================================================")
 	pterm.Success.Printfln("")
 }
 
-func (f flowServe) extractDatabaseCredentialsFromFlow() flowPersistenceBackendOptions {
+func extractDatabaseCredentialsFromFlow() flowPersistenceBackendOptions {
 	pterm.Debug.Println("Finding database credentials")
-	output := f.readFlowSettings("Neos.Flow.persistence.backendOptions")
+	output := readFlowSettings("Neos.Flow.persistence.backendOptions")
 	var flowPersistence flowPersistenceBackendOptions
 	err := yaml.Unmarshal([]byte(output), &flowPersistence)
 	if err != nil {
@@ -226,9 +210,9 @@ func (f flowServe) extractDatabaseCredentialsFromFlow() flowPersistenceBackendOp
 	return flowPersistence
 }
 
-func (f flowServe) extractResourceConfigFromFlow() flowResourceOptions {
+func extractResourceConfigFromFlow() flowResourceOptions {
 	pterm.Debug.Println("Finding resource configuration")
-	output := f.readFlowSettings("Neos.Flow.resource")
+	output := readFlowSettings("Neos.Flow.resource")
 	var opts flowResourceOptions
 	err := yaml.Unmarshal([]byte(output), &opts)
 	if err != nil {
@@ -237,7 +221,7 @@ func (f flowServe) extractResourceConfigFromFlow() flowResourceOptions {
 	return opts
 }
 
-func (f flowServe) readFlowSettings(path string) string {
+func readFlowSettings(path string) string {
 	cmd := commonServe.ExecWithVariousPhpInterpreters(fmt.Sprintf("flow configuration:show --type Settings --path %s", path))
 	php := os.Getenv("PHP")
 	if php != "" {
@@ -255,7 +239,7 @@ func (f flowServe) readFlowSettings(path string) string {
 	return output
 }
 
-func (f flowServe) extractResourcesFromS3(transferSession *serve.TransferSession, db *sql.DB, persistentTarget *flowResourceTarget, whereClauseForTables map[string]string) {
+func extractResourcesFromS3(transferSession *serve.TransferSession, db *sql.DB, persistentTarget *flowResourceTarget, whereClauseForTables map[string]string) {
 	extraWhereClause := "true"
 	if len(whereClauseForTables["neos_flow_resourcemanagement_persistentresource"]) > 0 {
 		extraWhereClause = whereClauseForTables["neos_flow_resourcemanagement_persistentresource"]
@@ -301,7 +285,7 @@ func (f flowServe) extractResourcesFromS3(transferSession *serve.TransferSession
 	commonServe.WriteResourcesIndex(transferSession, resourceFilesIndex, totalSizeBytes)
 }
 
-func (f flowServe) extractResourcesFromFolderSkippingThumbnails(transferSession *serve.TransferSession, db *sql.DB, persistentTarget *flowResourceTarget, whereClauseForTables map[string]string) {
+func extractResourcesFromFolderSkippingThumbnails(transferSession *serve.TransferSession, db *sql.DB, persistentTarget *flowResourceTarget, whereClauseForTables map[string]string) {
 	extraWhereClause := "true"
 	if len(whereClauseForTables["neos_flow_resourcemanagement_persistentresource"]) > 0 {
 		extraWhereClause = whereClauseForTables["neos_flow_resourcemanagement_persistentresource"]

@@ -11,14 +11,16 @@ and then run `make`.
 
 ### ... with a public network
 
-for testing with locally built synco-lite versions, you can use `sish`:
+for testing with locally built synco-lite versions, you can upload your locally built synco:
 
 ```bash
-# now, build synco for Linux
+# build synco for Linux
 GOOS=linux GOARCH=amd64 make synco-lite
 
-# on the remote system, upload synco
+# upload synco to the remote system
 scp build/synco-lite .....
+# or:
+kubectl cp build/synco-lite POD-NAME-HERE:/tmp/synco-lite
 ```
 
 ## Releasing new versions

@@ -155,6 +155,26 @@ func (ts *TransferSession) EncryptToFile(fileName string) (WriteCloserWithSize, 
 	}, nil
 }
 
+func (ts *TransferSession) RenderConnectCommand() {
+	pterm.Success.Printfln("READY: Execute the following command on the target system to download the dump:")
+	pterm.Success.Printfln("")
+	pterm.Success.Printfln("          # locally: ")
+	pterm.Success.Printfln("          synco receive %s %s", ts.Identifier, ts.Password)
+	pterm.Success.Printfln("")
+	pterm.Success.Printfln("          # on another server:")
+	pterm.Success.Printfln("          curl https://sandstorm.github.io/synco/synco | sh -s - receive %s %s", ts.Identifier, ts.Password)
+	pterm.Success.Printfln("")
+
+	if !ts.KeepFiles {
+		pterm.Success.Printfln("When you are finished, stop the server by pressing Ctrl-C")
+		pterm.Success.Printfln("to have synco clean up your files.")
+	} else {
+		pterm.Success.Printfln("You are finished.")
+		pterm.Warning.Printfln("Syno will --keep the file '%s'.", *ts.WorkDir)
+		pterm.Warning.Printfln("You will have to remove it manually!!!")
+	}
+}
+
 type WriteCloserWithSize interface {
 	io.WriteCloser
 	Size() uint64
