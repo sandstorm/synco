@@ -2,21 +2,17 @@ package flowServe
 
 import (
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"github.com/pterm/pterm"
 	"github.com/sandstorm/synco/pkg/common"
+	"github.com/sandstorm/synco/pkg/common/commonServe"
 	"github.com/sandstorm/synco/pkg/common/dto"
 	"github.com/sandstorm/synco/pkg/serve"
 	"github.com/sandstorm/synco/pkg/util"
-	"github.com/sandstorm/synco/pkg/util/mysql"
 	"gopkg.in/yaml.v3"
-	"log"
 	"net/url"
 	"os"
 	"os/exec"
-	"path"
-	"path/filepath"
 	"strconv"
 	"strings"
 )
@@ -30,12 +26,12 @@ func (f flowServe) Name() string {
 
 func (f flowServe) Detect() bool {
 	if _, err := os.Stat("flow"); err != nil {
-		pterm.Debug.Println("./flow binary not found, thus no installed Flow ServeFramework")
+		pterm.Debug.Println("./flow binary not found, thus no installed Flow Framework")
 		return false
 	}
 
 	if _, err := os.Stat("Web"); err != nil {
-		pterm.Debug.Println("./Web folder not found, thus no installed Flow ServeFramework")
+		pterm.Debug.Println("./Web folder not found, thus no installed Flow Framework")
 		return false
 	}
 
@@ -155,21 +151,21 @@ func (f flowServe) Serve(transferSession *serve.TransferSession) {
 	if transferSession.DumpAll {
 		whereClauseForTables = map[string]string{}
 	}
-	db := f.databaseDump(transferSession, flowPersistence, whereClauseForTables)
+	db := commonServe.DatabaseDump(transferSession, flowPersistence.ToDbCredentials(), whereClauseForTables)
 	flowResourceConfig := f.extractResourceConfigFromFlow()
 	persistentTarget := flowResourceConfig.FindPersistentTarget()
 
 	if persistentTarget == nil {
 		pterm.Warning.Printfln("falling back to extracting locations from default location.")
 		// fallback to extracting resources from default location
-		f.extractAllResourcesFromFolder(transferSession, "./Web/_Resources/Persistent", "_Resources/Persistent")
+		commonServe.ExtractAllResourcesFromFolder(transferSession, "./Web/_Resources/Persistent", "_Resources/Persistent")
 	} else if persistentTarget.IsS3Target() {
 		pterm.Info.Printfln("Extracting resources for S3Target (baseUri=%s)", persistentTarget.TargetOptions.BaseUri)
 		f.extractResourcesFromS3(transferSession, db, persistentTarget, whereClauseForTables)
 	} else if persistentTarget.IsFileSystemTarget() {
 		if transferSession.DumpAll {
 			pterm.Info.Printfln("Extracting ALL resources for FileSystemTarget (path=%s, baseUri=%s)", persistentTarget.TargetOptions.Path, persistentTarget.TargetOptions.BaseUri)
-			f.extractAllResourcesFromFolder(transferSession, persistentTarget.TargetOptions.Path, persistentTarget.TargetOptions.BaseUri)
+			commonServe.ExtractAllResourcesFromFolder(transferSession, persistentTarget.TargetOptions.Path, persistentTarget.TargetOptions.BaseUri)
 		} else {
 			pterm.Info.Printfln("Extracting resources (but skipping thumbnails) for FileSystemTarget (path=%s, baseUri=%s)", persistentTarget.TargetOptions.Path, persistentTarget.TargetOptions.BaseUri)
 			f.extractResourcesFromFolderSkippingThumbnails(transferSession, db, persistentTarget, whereClauseForTables)
@@ -242,8 +238,7 @@ func (f flowServe) extractResourceConfigFromFlow() flowResourceOptions {
 }
 
 func (f flowServe) readFlowSettings(path string) string {
-	// try to auto-detect PHP versions by trying different PHP interpreters
-	cmd := exec.Command("sh", "-c", fmt.Sprintf("./flow configuration:show --type Settings --path %s || php82 flow configuration:show --type Settings --path %s || php81 flow configuration:show --type Settings --path %s || php80 flow configuration:show --type Settings --path %s || php74 flow configuration:show --type Settings --path %s || php8.2 flow configuration:show --type Settings --path %s || php8.1 flow configuration:show --type Settings --path %s || php8.0 flow configuration:show --type Settings --path %s || php7.4 flow configuration:show --type Settings --path %s", path, path, path, path, path, path, path, path, path))
+	cmd := commonServe.ExecWithVariousPhpInterpreters(fmt.Sprintf("flow configuration:show --type Settings --path %s", path))
 	php := os.Getenv("PHP")
 	if php != "" {
 		// in case the PHP version is specified via the "$PHP" env var, we take this one.
@@ -258,88 +253,6 @@ func (f flowServe) readFlowSettings(path string) string {
 	outputParts := strings.SplitN(output, "\n", 2)
 	output = outputParts[1]
 	return output
-}
-
-func (f flowServe) databaseDump(transferSession *serve.TransferSession, flowPersistence flowPersistenceBackendOptions, whereClauseForTables map[string]string) *sql.DB {
-	// 2) DATABASE DUMP
-	// basically the way it works is:
-	// mysql.CreateDump --> age.Encrypt --> write to file.
-	// but because this is based on streams, we need to construct it the other way around:
-	// 1st: open the target file
-	// 2nd: init age.Encrypt
-	// 3rd: do mysql dump (which feeds the Writer)
-	wc, err := transferSession.EncryptToFile("dump.sql.enc")
-	fileSet := &dto.FileSet{
-		Name: "dbDump",
-		Type: dto.TYPE_MYSQLDUMP,
-		MysqlDump: &dto.FileSetMysqlDump{
-			FileName: "dump.sql.enc",
-		},
-	}
-
-	// 2b) the actual DB dump. also finishes writing.
-	db, err := mysql.CreateDump(flowPersistence.ToDbCredentials(), wc, whereClauseForTables)
-	if err != nil {
-		pterm.Fatal.Printfln("could not create SQL dump: %s", err)
-	}
-	fileSet.MysqlDump.SizeBytes = wc.Size()
-	transferSession.Meta.FileSets = append(transferSession.Meta.FileSets, fileSet)
-	err = transferSession.UpdateMetadata()
-	if err != nil {
-		pterm.Fatal.Printfln("could not update SQL dump metadata: %s", err)
-	}
-
-	pterm.Info.Printfln("Stored Database Dump in %s", "dump.sql.enc")
-	return db
-}
-
-func (f flowServe) extractAllResourcesFromFolder(transferSession *serve.TransferSession, persistentResourcesBasePath string, baseUri string) {
-	resourceFilesIndex := make(dto.PublicFilesIndex)
-	totalSizeBytes := uint64(0)
-	err := filepath.Walk(persistentResourcesBasePath,
-		func(filePath string, info os.FileInfo, err error) error {
-			if err != nil {
-				return err
-			}
-			if info.IsDir() {
-				// skip directories on traversal
-				return nil
-			}
-
-			realPath, err := filepath.EvalSymlinks(filePath)
-			if err != nil {
-				pterm.Error.Printfln("Could NOT evaluate symlinks (skipping): %s: %s", filePath, err)
-				return nil
-			}
-			realFileInfo, err := os.Lstat(realPath)
-			if err != nil {
-				pterm.Error.Printfln("Could NOT read file info (skipping): %s: %s", realPath, err)
-				return nil
-			}
-
-			filePath = strings.TrimPrefix(filePath, persistentResourcesBasePath)
-
-			// Flow stores files in /..../<resourceSha1>/<filename>.jpg; so we extract the resourceSha1 here.
-			resourceSha1 := path.Base(path.Dir(filePath))
-
-			publicUri, err := url.JoinPath(baseUri, filePath)
-			if err != nil {
-				return err
-			}
-
-			totalSizeBytes += uint64(realFileInfo.Size())
-			resourceFilesIndex["Resources/"+resourceSha1[0:1]+"/"+resourceSha1[1:2]+"/"+resourceSha1[2:3]+"/"+resourceSha1[3:4]+"/"+resourceSha1] = dto.PublicFilesIndexEntry{
-				SizeBytes: int64(realFileInfo.Size()),
-				MTime:     realFileInfo.ModTime().Unix(),
-				PublicUri: "<BASE>/" + publicUri,
-			}
-			return nil
-		})
-	if err != nil {
-		log.Println(err)
-	}
-
-	f.writeResourcesIndex(transferSession, resourceFilesIndex, totalSizeBytes)
 }
 
 func (f flowServe) extractResourcesFromS3(transferSession *serve.TransferSession, db *sql.DB, persistentTarget *flowResourceTarget, whereClauseForTables map[string]string) {
@@ -385,36 +298,7 @@ func (f flowServe) extractResourcesFromS3(transferSession *serve.TransferSession
 		pterm.Fatal.Printfln("error iterating rows: %s", err)
 	}
 
-	f.writeResourcesIndex(transferSession, resourceFilesIndex, totalSizeBytes)
-}
-
-func (f flowServe) writeResourcesIndex(transferSession *serve.TransferSession, resourceFilesIndex dto.PublicFilesIndex, totalSizeBytes uint64) {
-	indexFileName := "Resources.index.json.enc"
-
-	bytes, err := json.Marshal(resourceFilesIndex)
-	if err != nil {
-		pterm.Fatal.Printfln("could not encode resourceFilesIndex: %s", err)
-	}
-
-	err = transferSession.EncryptBytesToFile(indexFileName, bytes)
-	if err != nil {
-		pterm.Fatal.Printfln("could not encrypt to file: %s", err)
-	}
-
-	fileSet := &dto.FileSet{
-		Name: "Resources",
-		Type: dto.TYPE_PUBLICFILES,
-		PublicFiles: &dto.FileSetPublicFiles{
-			IndexFileName: indexFileName,
-			SizeBytes:     totalSizeBytes,
-		},
-	}
-	transferSession.Meta.FileSets = append(transferSession.Meta.FileSets, fileSet)
-	err = transferSession.UpdateMetadata()
-	if err != nil {
-		pterm.Fatal.Printfln("could not update Resource dump metadata: %s", err)
-	}
-	pterm.Info.Printfln("Extracted Resource Index")
+	commonServe.WriteResourcesIndex(transferSession, resourceFilesIndex, totalSizeBytes)
 }
 
 func (f flowServe) extractResourcesFromFolderSkippingThumbnails(transferSession *serve.TransferSession, db *sql.DB, persistentTarget *flowResourceTarget, whereClauseForTables map[string]string) {
@@ -460,7 +344,7 @@ func (f flowServe) extractResourcesFromFolderSkippingThumbnails(transferSession 
 		pterm.Fatal.Printfln("error iterating rows: %s", err)
 	}
 
-	f.writeResourcesIndex(transferSession, resourceFilesIndex, totalSizeBytes)
+	commonServe.WriteResourcesIndex(transferSession, resourceFilesIndex, totalSizeBytes)
 }
 
 func NewFlowFramework() common.ServeFramework {
