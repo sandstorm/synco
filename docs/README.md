@@ -26,11 +26,13 @@
 ----
 
 <!-- TOC -->
-- [Features](#features)
-- [Installation](#installation)
-- [Usage](#usage)
-- [Usage Server-to-Server](#usage-server-to-server)
-- [License](#license)
+* [Features](#features)
+* [Installation](#installation)
+* [Usage](#usage)
+  * [Configuration](#configuration)
+* [Usage Server-to-Server](#usage-server-to-server)
+* [Development](#development)
+* [License](#license)
 <!-- TOC -->
 * [Architecture](https://sandstorm.github.io/synco/#/architecture)
 
@@ -74,7 +76,10 @@ Features:
   * **Neos / Flow Applications**
     * with local Resources
     * **NEW [since 1.2.0](./whats-new.md): with resources stored in S3**
-    * **NEW [since 1.2.0](./whats-new.md): Smart Transfer - not downloading thumbnail resources for up to 80% size reduction.** 
+    * **NEW [since 1.2.0](./whats-new.md): Smart Transfer - not downloading thumbnail resources for up to 80% size reduction.**
+  * **NEW [since 2.0.0](./whats-new.md): Laravel support**
+    * with DB support
+    * with local public and private resources
   * (later, other frameworks will be added here)
 * **multiple file-sets** supported. This means you can choose to only sync your database, but not your binary resources/assets.
 * **Speed Optimized**: publicly available binary assets are not zipped extra; but the already-public files are simply downloaded.
@@ -165,7 +170,7 @@ curl https://sandstorm.github.io/synco/synco | sh -s - receive ts-...... .......
 
 # Development
 
-* if you are developing synco in a Docker container this will be helpful for building `GOOS=linux go build`
+See [CONTRIBUTING.md](CONTRIBUTING.md) for details on the dev process.
 
 # License
 

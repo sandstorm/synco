@@ -1,5 +1,13 @@
 # What's New
 
+## Version 2.0.0 (01. October 2024) - Laravel Support
+
+With this release, we support **Laravel** framework as first-class framework:
+
+- Download database dump from Laravel applications (encrypted)
+- Download public resources from Laravel applications
+- Download private resources from Laravel applications (encrypted)
+
 ## Version 1.3.0 (24. July 2023) - work with different PHP versions
 
 With this release, we auto-detect the correct PHP version to use during `synco serve`.
