@@ -10,12 +10,17 @@ import (
 	"github.com/sandstorm/synco/pkg/serve"
 	"github.com/sandstorm/synco/pkg/util"
 	"gopkg.in/yaml.v3"
+	"log"
 	"net/url"
 	"os"
 	"os/exec"
+	"path"
+	"path/filepath"
 	"strconv"
 	"strings"
 )
+
+const FlowResources = "Resources"
 
 type flowServe struct {
 }
@@ -158,14 +163,14 @@ func (f flowServe) Serve(transferSession *serve.TransferSession) {
 	if persistentTarget == nil {
 		pterm.Warning.Printfln("falling back to extracting locations from default location.")
 		// fallback to extracting resources from default location
-		commonServe.ExtractAllResourcesFromFolder(transferSession, "./Web/_Resources/Persistent", "_Resources/Persistent")
+		extractAllResourcesFromFolder(transferSession, "./Web/_Resources/Persistent", "_Resources/Persistent")
 	} else if persistentTarget.IsS3Target() {
 		pterm.Info.Printfln("Extracting resources for S3Target (baseUri=%s)", persistentTarget.TargetOptions.BaseUri)
 		extractResourcesFromS3(transferSession, db, persistentTarget, whereClauseForTables)
 	} else if persistentTarget.IsFileSystemTarget() {
 		if transferSession.DumpAll {
 			pterm.Info.Printfln("Extracting ALL resources for FileSystemTarget (path=%s, baseUri=%s)", persistentTarget.TargetOptions.Path, persistentTarget.TargetOptions.BaseUri)
-			commonServe.ExtractAllResourcesFromFolder(transferSession, persistentTarget.TargetOptions.Path, persistentTarget.TargetOptions.BaseUri)
+			extractAllResourcesFromFolder(transferSession, persistentTarget.TargetOptions.Path, persistentTarget.TargetOptions.BaseUri)
 		} else {
 			pterm.Info.Printfln("Extracting resources (but skipping thumbnails) for FileSystemTarget (path=%s, baseUri=%s)", persistentTarget.TargetOptions.Path, persistentTarget.TargetOptions.BaseUri)
 			extractResourcesFromFolderSkippingThumbnails(transferSession, db, persistentTarget, whereClauseForTables)
@@ -282,7 +287,7 @@ func extractResourcesFromS3(transferSession *serve.TransferSession, db *sql.DB, 
 		pterm.Fatal.Printfln("error iterating rows: %s", err)
 	}
 
-	commonServe.WriteResourcesIndex(transferSession, resourceFilesIndex, totalSizeBytes)
+	commonServe.WriteResourcesIndex(transferSession, FlowResources, resourceFilesIndex, totalSizeBytes)
 }
 
 func extractResourcesFromFolderSkippingThumbnails(transferSession *serve.TransferSession, db *sql.DB, persistentTarget *flowResourceTarget, whereClauseForTables map[string]string) {
@@ -328,9 +333,58 @@ func extractResourcesFromFolderSkippingThumbnails(transferSession *serve.Transfe
 		pterm.Fatal.Printfln("error iterating rows: %s", err)
 	}
 
-	commonServe.WriteResourcesIndex(transferSession, resourceFilesIndex, totalSizeBytes)
+	commonServe.WriteResourcesIndex(transferSession, FlowResources, resourceFilesIndex, totalSizeBytes)
 }
 
 func NewFlowFramework() common.ServeFramework {
 	return &flowServe{}
+}
+
+func extractAllResourcesFromFolder(transferSession *serve.TransferSession, persistentResourcesBasePath string, baseUri string) {
+	resourceFilesIndex := make(dto.PublicFilesIndex)
+	totalSizeBytes := uint64(0)
+	err := filepath.Walk(persistentResourcesBasePath,
+		func(filePath string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+			if info.IsDir() {
+				// skip directories on traversal
+				return nil
+			}
+
+			realPath, err := filepath.EvalSymlinks(filePath)
+			if err != nil {
+				pterm.Error.Printfln("Could NOT evaluate symlinks (skipping): %s: %s", filePath, err)
+				return nil
+			}
+			realFileInfo, err := os.Lstat(realPath)
+			if err != nil {
+				pterm.Error.Printfln("Could NOT read file info (skipping): %s: %s", realPath, err)
+				return nil
+			}
+
+			filePath = strings.TrimPrefix(filePath, persistentResourcesBasePath)
+
+			// Flow stores files in /..../<resourceSha1>/<filename>.jpg; so we extract the resourceSha1 here.
+			resourceSha1 := path.Base(path.Dir(filePath))
+
+			publicUri, err := url.JoinPath(baseUri, filePath)
+			if err != nil {
+				return err
+			}
+
+			totalSizeBytes += uint64(realFileInfo.Size())
+			resourceFilesIndex["Resources/"+resourceSha1[0:1]+"/"+resourceSha1[1:2]+"/"+resourceSha1[2:3]+"/"+resourceSha1[3:4]+"/"+resourceSha1] = dto.PublicFilesIndexEntry{
+				SizeBytes: int64(realFileInfo.Size()),
+				MTime:     realFileInfo.ModTime().Unix(),
+				PublicUri: "<BASE>/" + publicUri,
+			}
+			return nil
+		})
+	if err != nil {
+		log.Println(err)
+	}
+
+	commonServe.WriteResourcesIndex(transferSession, FlowResources, resourceFilesIndex, totalSizeBytes)
 }

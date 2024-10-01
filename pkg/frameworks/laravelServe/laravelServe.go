@@ -9,9 +9,13 @@ import (
 	"github.com/sandstorm/synco/pkg/common/dto"
 	"github.com/sandstorm/synco/pkg/serve"
 	"github.com/sandstorm/synco/pkg/util"
+	"log"
+	"net/url"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
+	"strings"
 )
 
 type laravelServe struct {
@@ -75,12 +79,18 @@ func (l laravelServe) Serve(transferSession *serve.TransferSession) {
 	commonServe.DatabaseDump(transferSession, laravelDatabaseCredentials.ToDbCredentials(), map[string]string{})
 	resourceConfig := extractResourceConfig()
 
-	for publicUrl, storageUrl := range resourceConfig.Links {
-		pterm.Info.Printfln("Extracting public resources for storage %s (baseUri=%s)", storageUrl, publicUrl)
-		commonServe.ExtractAllResourcesFromFolder(transferSession, storageUrl, publicUrl)
+	for id, disk := range resourceConfig.Disks {
+		if disk.Driver != "local" {
+			pterm.Warning.Printfln("Laravel storage driver %s not supported right now - so NOT transferring %s (path=%s)", disk.Driver, id, disk.Root)
+			continue
+		}
+		if disk.Visibility == "public" {
+			pterm.Info.Printfln("Extracting public resources for storage %s (driver=%s, path=%s, baseUri=%s)", id, disk.Driver, disk.Root, disk.Url)
+			extractAllResourcesFromFolder(transferSession, "Resources "+id, disk.Root, disk.Url)
+		} else {
+			pterm.Warning.Printfln("Non-public storage not supported right now - so NOT transferring %s (driver=%s, path=%s)", id, disk.Driver, disk.Root)
+		}
 	}
-
-	pterm.Warning.Printfln("Non-public storage not supported right now.")
 
 	transferSession.Meta.State = dto.STATE_READY
 	err = transferSession.UpdateMetadata()
@@ -154,4 +164,50 @@ func runArtisanTinker(tinkerCommand string) string {
 
 func NewLaravel() common.ServeFramework {
 	return &laravelServe{}
+}
+
+func extractAllResourcesFromFolder(transferSession *serve.TransferSession, name, persistentResourcesBasePath string, baseUri string) {
+	resourceFilesIndex := make(dto.PublicFilesIndex)
+	totalSizeBytes := uint64(0)
+	err := filepath.Walk(persistentResourcesBasePath,
+		func(filePath string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+			if info.IsDir() {
+				// skip directories on traversal
+				return nil
+			}
+
+			realPath, err := filepath.EvalSymlinks(filePath)
+			if err != nil {
+				pterm.Error.Printfln("Could NOT evaluate symlinks (skipping): %s: %s", filePath, err)
+				return nil
+			}
+			realFileInfo, err := os.Lstat(realPath)
+			if err != nil {
+				pterm.Error.Printfln("Could NOT read file info (skipping): %s: %s", realPath, err)
+				return nil
+			}
+
+			filePath = strings.TrimPrefix(filePath, persistentResourcesBasePath)
+
+			publicUri, err := url.JoinPath(baseUri, filePath)
+			if err != nil {
+				return err
+			}
+
+			totalSizeBytes += uint64(realFileInfo.Size())
+			resourceFilesIndex[persistentResourcesBasePath+filePath] = dto.PublicFilesIndexEntry{
+				SizeBytes: int64(realFileInfo.Size()),
+				MTime:     realFileInfo.ModTime().Unix(),
+				PublicUri: publicUri,
+			}
+			return nil
+		})
+	if err != nil {
+		log.Println(err)
+	}
+
+	commonServe.WriteResourcesIndex(transferSession, name, resourceFilesIndex, totalSizeBytes)
 }
