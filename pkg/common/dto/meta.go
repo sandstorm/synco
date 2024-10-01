@@ -39,17 +39,19 @@ func (m Meta) FileSetByLabel(label string) *FileSet {
 type FileSetType string
 
 const (
-	TYPE_MYSQLDUMP    FileSetType = "MysqlDump"
-	TYPE_POSTGRESDUMP FileSetType = "PostgresDump"
-	TYPE_PUBLICFILES  FileSetType = "PublicFiles"
+	TYPE_MYSQLDUMP               FileSetType = "MysqlDump"
+	TYPE_POSTGRESDUMP            FileSetType = "PostgresDump"
+	TYPE_PUBLICFILES             FileSetType = "PublicFiles"
+	TYPE_PRIVATE_ENCRYPTED_FILES FileSetType = "PrivateEncryptedFiles"
 )
 
 type FileSet struct {
-	Name         string               `json:"name"`
-	Type         FileSetType          `json:"type"`
-	MysqlDump    *FileSetMysqlDump    `json:"mysqlDump"`
-	PostgresDump *FileSetPostgresDump `json:"postgresDump"`
-	PublicFiles  *FileSetPublicFiles  `json:"publicFiles"`
+	Name                  string                        `json:"name"`
+	Type                  FileSetType                   `json:"type"`
+	MysqlDump             *FileSetMysqlDump             `json:"mysqlDump"`
+	PostgresDump          *FileSetPostgresDump          `json:"postgresDump"`
+	PublicFiles           *FileSetPublicFiles           `json:"publicFiles"`
+	PrivateEncryptedFiles *FileSetPrivateEncryptedFiles `json:"privateEncryptedFiles"`
 }
 
 func (fileSet *FileSet) Label() string {
@@ -61,6 +63,8 @@ func (fileSet *FileSet) Label() string {
 		return fmt.Sprintf("%s (%s: %s)", fileSet.Name, fileSet.Type, humanize.IBytes(fileSet.PostgresDump.SizeBytes))
 	case TYPE_PUBLICFILES:
 		return fmt.Sprintf("%s (%s: %s)", fileSet.Name, fileSet.Type, humanize.IBytes(fileSet.PublicFiles.SizeBytes))
+	case TYPE_PRIVATE_ENCRYPTED_FILES:
+		return fmt.Sprintf("%s (%s: %s)", fileSet.Name, fileSet.Type, humanize.IBytes(fileSet.PrivateEncryptedFiles.SizeBytes))
 	default:
 		return fmt.Sprintf("%s (%s)", fileSet.Name, fileSet.Type)
 	}
@@ -84,6 +88,12 @@ type FileSetPostgresDump struct {
 type FileSetPublicFiles struct {
 	IndexFileName string `json:"indexFileName"`
 	SizeBytes     uint64 `json:"sizeBytes"`
+}
+
+type FileSetPrivateEncryptedFiles struct {
+	SizeBytes        uint64 `json:"sizeBytes"`
+	TarUri           string `json:"tarUri"`
+	RelativeBasePath string `json:"relativeBasePath"`
 }
 
 // PublicFilesIndex is the structure of the "index" file for FileSetPublicFiles.

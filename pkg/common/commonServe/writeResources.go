@@ -7,8 +7,8 @@ import (
 	"github.com/sandstorm/synco/pkg/serve"
 )
 
-func WriteResourcesIndex(transferSession *serve.TransferSession, name string, resourceFilesIndex dto.PublicFilesIndex, totalSizeBytes uint64) {
-	indexFileName := "Resources.index.json.enc"
+func WriteResourcesIndex(transferSession *serve.TransferSession, fileSetType dto.FileSetType, name string, resourceFilesIndex dto.PublicFilesIndex, totalSizeBytes uint64) {
+	indexFileName := "Resources-" + name + ".index.json.enc"
 
 	bytes, err := json.Marshal(resourceFilesIndex)
 	if err != nil {
@@ -22,7 +22,7 @@ func WriteResourcesIndex(transferSession *serve.TransferSession, name string, re
 
 	fileSet := &dto.FileSet{
 		Name: name,
-		Type: dto.TYPE_PUBLICFILES,
+		Type: fileSetType,
 		PublicFiles: &dto.FileSetPublicFiles{
 			IndexFileName: indexFileName,
 			SizeBytes:     totalSizeBytes,

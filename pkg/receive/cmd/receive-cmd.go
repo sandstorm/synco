@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"archive/tar"
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,8 +15,10 @@ import (
 	"github.com/sandstorm/synco/pkg/ui/multiselect"
 	"github.com/sandstorm/synco/pkg/ui/textinput"
 	"github.com/spf13/cobra"
+	"io"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -73,6 +77,8 @@ var ReceiveCmd = &cobra.Command{
 				err = downloadMysqldump(receiveSession, fileSet)
 			case dto.TYPE_PUBLICFILES:
 				err = downloadPublicFiles(receiveSession, fileSet)
+			case dto.TYPE_PRIVATE_ENCRYPTED_FILES:
+				err = downloadPrivateEncryptedFiles(receiveSession, fileSet)
 			default:
 				pterm.Fatal.Printfln("File Set type %s was unimplemented.", fileSet.Type)
 			}
@@ -261,6 +267,76 @@ func downloadPublicFiles(receiveSession *receive.ReceiveSession, fileSet *dto.Fi
 		}
 	}
 	pterm.DefaultBasicText.Sprintf("Downloaded %d files (Skipped: %d)", len(publicFilesIndex), skipped)
+
+	return nil
+}
+
+func downloadPrivateEncryptedFiles(receiveSession *receive.ReceiveSession, fileSet *dto.FileSet) error {
+	tarBytes, err := receiveSession.FetchAndDecryptFileWithProgressBar(fileSet.PrivateEncryptedFiles.TarUri)
+	if err != nil {
+		return fmt.Errorf("error decrypting files: %w", err)
+	}
+
+	err = extractTar(tarBytes, "./dump/"+fileSet.PrivateEncryptedFiles.RelativeBasePath)
+	if err != nil {
+		return fmt.Errorf("error decrypting files: %w", err)
+	}
+
+	pterm.DefaultBasicText.Sprintf("Downloaded files")
+
+	return nil
+}
+
+func extractTar(input *bytes.Buffer, destination string) error {
+	// Create the tar reader
+	tr := tar.NewReader(input)
+
+	// Iterate through the files in the tar
+	for {
+		header, err := tr.Next()
+		if err == io.EOF {
+			// End of tar archive
+			break
+		}
+		if err != nil {
+			return fmt.Errorf("error reading tar: %w", err)
+		}
+
+		// The target file location
+		target := filepath.Join(destination, header.Name)
+
+		// Check if it's a directory or a file
+		switch header.Typeflag {
+		case tar.TypeDir:
+			// Create the directory
+			if err := os.MkdirAll(target, os.FileMode(header.Mode)); err != nil {
+				return fmt.Errorf("error creating directory: %w", err)
+			}
+		case tar.TypeReg:
+			// Create the file
+			if err := os.MkdirAll(filepath.Dir(target), 0755); err != nil {
+				return fmt.Errorf("error creating directory for file: %w", err)
+			}
+
+			outFile, err := os.Create(target)
+			if err != nil {
+				return fmt.Errorf("error creating file: %w", err)
+			}
+			defer outFile.Close()
+
+			// Copy the file content
+			if _, err := io.Copy(outFile, tr); err != nil {
+				return fmt.Errorf("error copying file content: %w", err)
+			}
+
+			// Set the file's permissions
+			if err := os.Chmod(target, os.FileMode(header.Mode)); err != nil {
+				return fmt.Errorf("error setting file permissions: %w", err)
+			}
+		default:
+			fmt.Printf("Unknown file type: %x in %s\n", header.Typeflag, header.Name)
+		}
+	}
 
 	return nil
 }

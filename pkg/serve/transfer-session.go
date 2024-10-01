@@ -137,6 +137,30 @@ func (ts *TransferSession) filepathInWorkDir(fileName string) string {
 	return filepath.Join(*ts.WorkDir, fileName)
 }
 
+// EncryptFileToFile returns file size of encrypted file (and error) if needed
+func (ts *TransferSession) EncryptFileToFile(srcFileName string, destFileName string) (uint64, error) {
+	file, err := os.Open(srcFileName)
+	if err != nil {
+		return 0, fmt.Errorf("opening file %s: %w", srcFileName, err)
+	}
+	defer func(file *os.File) {
+		_ = file.Close()
+	}(file)
+
+	wc, err := ts.EncryptToFile(destFileName)
+
+	if _, err := io.Copy(wc, file); err != nil {
+		return 0, fmt.Errorf("encrypting file (1) %s: %w", srcFileName, err)
+	}
+
+	err = wc.Close()
+	if err != nil {
+		return 0, fmt.Errorf("encrypting file (2) %s: %w", srcFileName, err)
+	}
+
+	return wc.Size(), nil
+}
+
 func (ts *TransferSession) EncryptToFile(fileName string) (WriteCloserWithSize, error) {
 	targetFile, err := os.OpenFile(ts.filepathInWorkDir(fileName), os.O_WRONLY|os.O_CREATE, 0644)
 	if err != nil {

@@ -160,7 +160,7 @@ func (rs *ReceiveSession) loadMetaFile() (*http.Response, error) {
 	}
 	return resp, nil
 }
-func (rs *ReceiveSession) FetchAndDecryptFileWithProgressBar(fileName string) ([]byte, error) {
+func (rs *ReceiveSession) FetchAndDecryptFileWithProgressBar(fileName string) (*bytes.Buffer, error) {
 	urlToLoad, err := url.JoinPath(*rs.baseUrl, rs.identifier, fileName)
 	pterm.Debug.Printfln("Trying to download %s", urlToLoad)
 	if err != nil {
@@ -216,10 +216,10 @@ func (rs *ReceiveSession) FetchAndDecryptFileWithProgressBar(fileName string) ([
 		return nil, fmt.Errorf("Error decrypting file from server (1): %w - ioCopy err: %s", err, ioCopyErr)
 	}
 
-	return buf.Bytes(), nil
+	return buf, nil
 }
 
-func (rs *ReceiveSession) FetchFileWithProgressBar(fileName string, progress *pterm.ProgressbarPrinter) ([]byte, error) {
+func (rs *ReceiveSession) FetchFileWithProgressBar(fileName string, progress *pterm.ProgressbarPrinter) (*bytes.Buffer, error) {
 	var urlToLoad string
 	var err error
 	if strings.HasPrefix(fileName, "http://") || strings.HasPrefix(fileName, "https://") {
@@ -283,7 +283,7 @@ func (rs *ReceiveSession) FetchFileWithProgressBar(fileName string, progress *pt
 		return nil, fmt.Errorf("Error reading file from server (io.copy): %w", ioCopyErr)
 	}
 
-	return buf.Bytes(), nil
+	return buf, nil
 }
 
 func (rs *ReceiveSession) DumpAndDecryptFileWithProgressBar(remoteFileName string, localFileName string) error {
@@ -296,7 +296,7 @@ func (rs *ReceiveSession) DumpAndDecryptFileWithProgressBar(remoteFileName strin
 	if err != nil {
 		return err
 	}
-	err = os.WriteFile(workdirFilePath, contents, 0644)
+	err = os.WriteFile(workdirFilePath, contents.Bytes(), 0644)
 	if err != nil {
 		return err
 	}
@@ -313,7 +313,7 @@ func (rs *ReceiveSession) DumpFileWithProgressBar(remoteFileName string, localFi
 	if err != nil {
 		return err
 	}
-	err = os.WriteFile(workdirFilePath, contents, 0644)
+	err = os.WriteFile(workdirFilePath, contents.Bytes(), 0644)
 	if err != nil {
 		return err
 	}

@@ -287,7 +287,7 @@ func extractResourcesFromS3(transferSession *serve.TransferSession, db *sql.DB, 
 		pterm.Fatal.Printfln("error iterating rows: %s", err)
 	}
 
-	commonServe.WriteResourcesIndex(transferSession, FlowResources, resourceFilesIndex, totalSizeBytes)
+	commonServe.WriteResourcesIndex(transferSession, dto.TYPE_PUBLICFILES, FlowResources, resourceFilesIndex, totalSizeBytes)
 }
 
 func extractResourcesFromFolderSkippingThumbnails(transferSession *serve.TransferSession, db *sql.DB, persistentTarget *flowResourceTarget, whereClauseForTables map[string]string) {
@@ -333,7 +333,7 @@ func extractResourcesFromFolderSkippingThumbnails(transferSession *serve.Transfe
 		pterm.Fatal.Printfln("error iterating rows: %s", err)
 	}
 
-	commonServe.WriteResourcesIndex(transferSession, FlowResources, resourceFilesIndex, totalSizeBytes)
+	commonServe.WriteResourcesIndex(transferSession, dto.TYPE_PUBLICFILES, FlowResources, resourceFilesIndex, totalSizeBytes)
 }
 
 func NewFlowFramework() common.ServeFramework {
@@ -386,5 +386,5 @@ func extractAllResourcesFromFolder(transferSession *serve.TransferSession, persi
 		log.Println(err)
 	}
 
-	commonServe.WriteResourcesIndex(transferSession, FlowResources, resourceFilesIndex, totalSizeBytes)
+	commonServe.WriteResourcesIndex(transferSession, dto.TYPE_PUBLICFILES, FlowResources, resourceFilesIndex, totalSizeBytes)
 }

@@ -1,6 +1,7 @@
 package laravelServe
 
 import (
+	"archive/tar"
 	"encoding/json"
 	"fmt"
 	"github.com/pterm/pterm"
@@ -9,6 +10,7 @@ import (
 	"github.com/sandstorm/synco/pkg/common/dto"
 	"github.com/sandstorm/synco/pkg/serve"
 	"github.com/sandstorm/synco/pkg/util"
+	"io"
 	"log"
 	"net/url"
 	"os"
@@ -79,16 +81,41 @@ func (l laravelServe) Serve(transferSession *serve.TransferSession) {
 	commonServe.DatabaseDump(transferSession, laravelDatabaseCredentials.ToDbCredentials(), map[string]string{})
 	resourceConfig := extractResourceConfig()
 
+	// 1) extract PUBLIC folders
+	skipDirs := make(map[string]bool)
 	for id, disk := range resourceConfig.Disks {
+		if disk.Driver == "s3" {
+			if disk.Bucket == "" && disk.Key == "" && disk.Secret == "" {
+				// s3 not configured, default Laravel settings. -> ignore this driver.
+				continue
+			}
+			pterm.Warning.Printfln("Laravel storage driver %s not supported right now - so NOT transferring %s (path=%s)", disk.Driver, id, disk.Root)
+			continue
+		}
+
 		if disk.Driver != "local" {
 			pterm.Warning.Printfln("Laravel storage driver %s not supported right now - so NOT transferring %s (path=%s)", disk.Driver, id, disk.Root)
 			continue
 		}
 		if disk.Visibility == "public" {
 			pterm.Info.Printfln("Extracting public resources for storage %s (driver=%s, path=%s, baseUri=%s)", id, disk.Driver, disk.Root, disk.Url)
-			extractAllResourcesFromFolder(transferSession, "Resources "+id, disk.Root, disk.Url)
-		} else {
-			pterm.Warning.Printfln("Non-public storage not supported right now - so NOT transferring %s (driver=%s, path=%s)", id, disk.Driver, disk.Root)
+			extractAllResourcesFromFolder(transferSession, id, disk.Root, disk.Url)
+
+			// in Laravel, it is common that /storage/app is private, and /storage/app/public is public
+			// -> so we want to skip the public parts from the private dump, as it makes the private dump smaller
+			// and more efficient: For public, we only build up an index, for private, we need to tar and encrypt the files
+			// together.
+			skipDirs[disk.Root] = true
+		}
+	}
+	// 2) extract PRIVATE folders, but skipping public nested ones
+	for id, disk := range resourceConfig.Disks {
+		if disk.Driver != "local" {
+			continue
+		}
+		if disk.Visibility != "public" {
+			pterm.Info.Printfln("Encrypting and extracting private resources for storage %s (driver=%s, path=%s, baseUri=%s)", id, disk.Driver, disk.Root, disk.Url)
+			encryptAndExtractAllResourcesFromFolder(transferSession, id, disk.Root, skipDirs)
 		}
 	}
 
@@ -99,9 +126,6 @@ func (l laravelServe) Serve(transferSession *serve.TransferSession) {
 	}
 	pterm.Success.Printfln("")
 	pterm.Success.Printfln("=================================================================================")
-	pterm.Success.Printfln("")
-	pterm.Success.Printfln("The dump does NOT contain:")
-	pterm.Success.Printfln("- non-public storage")
 	pterm.Success.Printfln("")
 
 	transferSession.RenderConnectCommand()
@@ -134,6 +158,9 @@ type laravelDisk struct {
 	Root       string `json:"root"`
 	Url        string `json:"url"`
 	Visibility string `json:"visibility"`
+	Bucket     string `json:"bucket"`
+	Key        string `json:"key"`
+	Secret     string `json:"secret"`
 }
 
 func extractResourceConfig() laravelFilesystems {
@@ -209,5 +236,127 @@ func extractAllResourcesFromFolder(transferSession *serve.TransferSession, name,
 		log.Println(err)
 	}
 
-	commonServe.WriteResourcesIndex(transferSession, name, resourceFilesIndex, totalSizeBytes)
+	commonServe.WriteResourcesIndex(transferSession, dto.TYPE_PUBLICFILES, name, resourceFilesIndex, totalSizeBytes)
+}
+
+// For encrypting, encrypting every single file individually with AGE is rather slow (no clue yet why).
+// That's why we TAR the folder first and then encrypt the result.
+func encryptAndExtractAllResourcesFromFolder(transferSession *serve.TransferSession, name string, persistentResourcesBasePath string, skipDirs map[string]bool) {
+	persistentResourcesBasePath = strings.TrimSuffix(persistentResourcesBasePath, "/")
+
+	wc, err := transferSession.EncryptToFile("encrypted-resources-" + name)
+	tw := tar.NewWriter(wc)
+
+	wd, err := os.Getwd()
+	if err != nil {
+		pterm.Error.Printfln("Could NOT find working directory:", err)
+		return
+	}
+
+	relativeBasePath := ""
+	if strings.HasPrefix(persistentResourcesBasePath, wd) {
+		relativeBasePath = persistentResourcesBasePath[len(wd):]
+	}
+	relativeBasePath = strings.TrimPrefix(relativeBasePath, "/")
+
+	pterm.Debug.Printfln("  Relative base path: %s", persistentResourcesBasePath)
+
+	lastModificationTime := int64(0)
+	err = filepath.Walk(persistentResourcesBasePath,
+		func(filePath string, info os.FileInfo, err error) error {
+			// Skip root dir
+			if len(filePath) <= len(persistentResourcesBasePath) {
+				return nil
+			}
+
+			if err != nil {
+				return err
+			}
+
+			// Check if the current directory should be skipped
+			if info.IsDir() {
+				if skipDirs[filePath] {
+					pterm.Debug.Printfln("  Skipping directory (because included in other export): %s", filePath)
+					return filepath.SkipDir
+				}
+			}
+
+			// Skip directories but preserve the folder structure
+			header, err := tar.FileInfoHeader(info, info.Name())
+			if err != nil {
+				return err
+			}
+
+			// Ensure the correct file path in the tar header
+			header.Name = filepath.ToSlash(filePath[len(persistentResourcesBasePath)+1:])
+			pterm.Debug.Printfln("  File Name: %s", header.Name)
+
+			// Write the header
+			if err := tw.WriteHeader(header); err != nil {
+				return err
+			}
+
+			// If it's a directory, no need to proceed further
+			if info.IsDir() {
+				return nil
+			}
+
+			realPath, err := filepath.EvalSymlinks(filePath)
+			if err != nil {
+				pterm.Error.Printfln("Could NOT evaluate symlinks (skipping): %s: %s", filePath, err)
+				return nil
+			}
+			realFileInfo, err := os.Lstat(realPath)
+			if err != nil {
+				pterm.Error.Printfln("Could NOT read file info (skipping): %s: %s", realPath, err)
+				return nil
+			}
+			if lastModificationTime < realFileInfo.ModTime().Unix() {
+				lastModificationTime = realFileInfo.ModTime().Unix()
+			}
+
+			// Open the file to copy its content
+			f, err := os.Open(filePath)
+			if err != nil {
+				return err
+			}
+			defer func(f *os.File) {
+				_ = f.Close()
+			}(f)
+
+			// Copy the file content to the tar writer
+			if _, err := io.Copy(tw, f); err != nil {
+				return err
+			}
+
+			return nil
+		})
+	if err != nil {
+		log.Println(err)
+	}
+
+	err = tw.Close()
+	if err != nil {
+		log.Println(err)
+	}
+
+	err = wc.Close()
+	if err != nil {
+		log.Println(err)
+	}
+
+	fileSet := &dto.FileSet{
+		Name: name,
+		Type: dto.TYPE_PRIVATE_ENCRYPTED_FILES,
+		PrivateEncryptedFiles: &dto.FileSetPrivateEncryptedFiles{
+			TarUri:           "encrypted-resources-" + name,
+			SizeBytes:        wc.Size(),
+			RelativeBasePath: relativeBasePath,
+		},
+	}
+	transferSession.Meta.FileSets = append(transferSession.Meta.FileSets, fileSet)
+	err = transferSession.UpdateMetadata()
+	if err != nil {
+		pterm.Fatal.Printfln("could not update Resource dump metadata: %s", err)
+	}
 }
