@@ -3,10 +3,10 @@ package commonServe
 import (
 	"database/sql"
 	"github.com/pterm/pterm"
-	"github.com/sandstorm/synco/pkg/common"
-	"github.com/sandstorm/synco/pkg/common/dto"
-	"github.com/sandstorm/synco/pkg/serve"
-	"github.com/sandstorm/synco/pkg/util/mysql"
+	"github.com/sandstorm/synco/v2/pkg/common"
+	"github.com/sandstorm/synco/v2/pkg/common/dto"
+	"github.com/sandstorm/synco/v2/pkg/serve"
+	"github.com/sandstorm/synco/v2/pkg/util/mysql"
 )
 
 func DatabaseDump(transferSession *serve.TransferSession, dbCredentials *common.DbCredentials, whereClauseForTables map[string]string) *sql.DB {

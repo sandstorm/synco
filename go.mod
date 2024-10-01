@@ -1,4 +1,4 @@
-module github.com/sandstorm/synco
+module github.com/sandstorm/synco/v2
 
 go 1.19
 

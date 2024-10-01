@@ -2,7 +2,7 @@ package main
 
 import (
 	"github.com/pterm/pterm"
-	"github.com/sandstorm/synco/cmd"
+	"github.com/sandstorm/synco/v2/cmd"
 	"os"
 	"os/signal"
 )

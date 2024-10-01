@@ -1,7 +1,7 @@
 package main
 
 import (
-	cmd_lite "github.com/sandstorm/synco/lite/cmd-lite"
+	cmd_lite "github.com/sandstorm/synco/v2/lite/cmd-lite"
 )
 
 func main() {

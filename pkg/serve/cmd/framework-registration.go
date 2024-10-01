@@ -1,9 +1,9 @@
 package cmd
 
 import (
-	"github.com/sandstorm/synco/pkg/common"
-	"github.com/sandstorm/synco/pkg/frameworks/flowServe"
-	"github.com/sandstorm/synco/pkg/frameworks/laravelServe"
+	"github.com/sandstorm/synco/v2/pkg/common"
+	"github.com/sandstorm/synco/v2/pkg/frameworks/flowServe"
+	"github.com/sandstorm/synco/v2/pkg/frameworks/laravelServe"
 )
 
 var RegisteredFrameworks = [...]common.ServeFramework{

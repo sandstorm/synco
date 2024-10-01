@@ -5,7 +5,7 @@ import (
 	"filippo.io/age"
 	"fmt"
 	"github.com/pterm/pterm"
-	"github.com/sandstorm/synco/pkg/common/dto"
+	"github.com/sandstorm/synco/v2/pkg/common/dto"
 	"io"
 	"net/http"
 	"os"

@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"github.com/sandstorm/synco/pkg/serve/cmd"
+	"github.com/sandstorm/synco/v2/pkg/serve/cmd"
 	"github.com/spf13/cobra"
 	"os"
 )

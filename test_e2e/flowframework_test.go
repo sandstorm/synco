@@ -3,7 +3,7 @@ package test_e2e
 import (
 	"github.com/orlangure/gnomock"
 	"github.com/orlangure/gnomock/preset/mariadb"
-	"github.com/sandstorm/synco/cmd"
+	"github.com/sandstorm/synco/v2/cmd"
 	"io/ioutil"
 	"os"
 	"strconv"

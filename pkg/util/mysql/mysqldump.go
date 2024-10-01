@@ -4,8 +4,8 @@ import (
 	"database/sql"
 	"fmt"
 	"github.com/go-sql-driver/mysql"
-	"github.com/sandstorm/synco/pkg/common"
-	mysqldump "github.com/sandstorm/synco/pkg/util/mysql/go_mysqldump"
+	"github.com/sandstorm/synco/v2/pkg/common"
+	mysqldump "github.com/sandstorm/synco/v2/pkg/util/mysql/go_mysqldump"
 	"io"
 )
 

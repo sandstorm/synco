@@ -3,8 +3,8 @@ package commonServe
 import (
 	"encoding/json"
 	"github.com/pterm/pterm"
-	"github.com/sandstorm/synco/pkg/common/dto"
-	"github.com/sandstorm/synco/pkg/serve"
+	"github.com/sandstorm/synco/v2/pkg/common/dto"
+	"github.com/sandstorm/synco/v2/pkg/serve"
 )
 
 func WriteResourcesIndex(transferSession *serve.TransferSession, fileSetType dto.FileSetType, name string, resourceFilesIndex dto.PublicFilesIndex, totalSizeBytes uint64) {

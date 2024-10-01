@@ -2,8 +2,8 @@ package cmd
 
 import (
 	"github.com/pterm/pterm"
-	"github.com/sandstorm/synco/pkg/serve"
-	"github.com/sandstorm/synco/pkg/util"
+	"github.com/sandstorm/synco/v2/pkg/serve"
+	"github.com/sandstorm/synco/v2/pkg/util"
 	"github.com/spf13/cobra"
 	"os"
 	"os/signal"

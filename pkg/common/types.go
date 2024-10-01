@@ -1,8 +1,8 @@
 package common
 
 import (
-	"github.com/sandstorm/synco/pkg/receive"
-	"github.com/sandstorm/synco/pkg/serve"
+	"github.com/sandstorm/synco/v2/pkg/receive"
+	"github.com/sandstorm/synco/v2/pkg/serve"
 )
 
 type ReceiveFramework interface {
