@@ -131,6 +131,11 @@ To download the dump, **on your local machine**, you run the CLI call printed ou
 - You need to specify the host server (as synco cannot know under what URL the production system is reachable).
 - You can choose what file-sets to download.
 
+> [!tip]
+> If your site is protected by `.htaccess`/basic auth (e.g. on a staging system) you can provide your user and password to the requested base domain like this:
+> `<user>:<password>@<base-domain>`
+
+> [!note]
 > **What is the difference between synco and synco-lite?**
 >
 > `synco-lite` is a binary-size-optimized package of Synco which only contains the code to run `synco serve`.
