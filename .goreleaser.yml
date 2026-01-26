@@ -125,7 +125,8 @@ brews:
     name: synco
     ids:
       - synco
-    tap:
+    # > Changed from "tap" to "repository" in version 2 (https://goreleaser.com/deprecations/#brewstap).
+    repository:
       owner: sandstorm
       name: homebrew-tap
 
@@ -137,7 +138,8 @@ brews:
 
     # Folder inside the repository to put the formula.
     # Default is the root folder.
-    folder: Formula
+    # > Changed from "folder" to "directory" in version 2 (https://goreleaser.com/deprecations/#brewsfolder).
+    directory: Formula
 
     # Your app's homepage.
     # Default is empty.
