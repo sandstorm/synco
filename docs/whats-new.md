@@ -1,5 +1,10 @@
 # What's New
 
+## Version 2.1.0 (TBD) - enable ssl for database connections
+With this release, we support connecting to databases over SSL/TLS connections.
+
+> INFO: The client is configured to skip certificate verification, to allow self-signed certificates.
+
 ## Version 2.0.0 (01. October 2024) - Laravel Support
 
 With this release, we support **Laravel** framework as first-class framework:
