@@ -36,6 +36,7 @@ const queries = `
 func startDb(t *testing.T) (string, string) {
 	t.Helper()
 	p := mariadb.Preset(
+		// default version is "10.5.8" - which does not support encrypted connections
 		mariadb.WithVersion("11.8"),
 		mariadb.WithUser("admin", "password"),
 		mariadb.WithDatabase("dummy1"),
