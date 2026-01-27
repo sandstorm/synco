@@ -3,10 +3,11 @@ package mysql
 import (
 	"database/sql"
 	"fmt"
+	"io"
+
 	"github.com/go-sql-driver/mysql"
 	"github.com/sandstorm/synco/v2/pkg/common"
 	mysqldump "github.com/sandstorm/synco/v2/pkg/util/mysql/go_mysqldump"
-	"io"
 )
 
 func CreateDump(dbCredentials *common.DbCredentials, writer io.WriteCloser, whereClauseForTables map[string]string) (*sql.DB, error) {
@@ -17,6 +18,8 @@ func CreateDump(dbCredentials *common.DbCredentials, writer io.WriteCloser, wher
 	config.DBName = dbCredentials.DbName
 	config.Net = "tcp"
 	config.Addr = fmt.Sprintf("%s:%d", dbCredentials.Host, dbCredentials.Port)
+	// Enable SSL usage but skip verification
+	config.TLSConfig = "skip-verify"
 
 	db, err := sql.Open("mysql", config.FormatDSN())
 	if err != nil {

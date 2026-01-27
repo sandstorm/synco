@@ -1,15 +1,16 @@
 package test_e2e
 
 import (
-	"github.com/orlangure/gnomock"
-	"github.com/orlangure/gnomock/preset/mariadb"
-	"github.com/sandstorm/synco/v2/cmd"
 	"io/ioutil"
 	"os"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/orlangure/gnomock"
+	"github.com/orlangure/gnomock/preset/mariadb"
+	"github.com/sandstorm/synco/v2/cmd"
 )
 import "github.com/rogpeppe/go-internal/testscript"
 
@@ -35,6 +36,8 @@ const queries = `
 func startDb(t *testing.T) (string, string) {
 	t.Helper()
 	p := mariadb.Preset(
+		// default version is "10.5.8" - which does not support encrypted connections
+		mariadb.WithVersion("11.8"),
 		mariadb.WithUser("admin", "password"),
 		mariadb.WithDatabase("dummy1"),
 		mariadb.WithQueries(queries),

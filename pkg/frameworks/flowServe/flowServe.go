@@ -3,13 +3,6 @@ package flowServe
 import (
 	"database/sql"
 	"fmt"
-	"github.com/pterm/pterm"
-	"github.com/sandstorm/synco/v2/pkg/common"
-	"github.com/sandstorm/synco/v2/pkg/common/commonServe"
-	"github.com/sandstorm/synco/v2/pkg/common/dto"
-	"github.com/sandstorm/synco/v2/pkg/serve"
-	"github.com/sandstorm/synco/v2/pkg/util"
-	"gopkg.in/yaml.v3"
 	"log"
 	"net/url"
 	"os"
@@ -18,6 +11,14 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/pterm/pterm"
+	"github.com/sandstorm/synco/v2/pkg/common"
+	"github.com/sandstorm/synco/v2/pkg/common/commonServe"
+	"github.com/sandstorm/synco/v2/pkg/common/dto"
+	"github.com/sandstorm/synco/v2/pkg/serve"
+	"github.com/sandstorm/synco/v2/pkg/util"
+	"gopkg.in/yaml.v3"
 )
 
 const FlowResources = "Resources"
