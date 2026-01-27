@@ -1,0 +1,21 @@
+# MISE is an environment manager, used to install tools and software versions, as well as helpers..
+#
+# INITIAL SETUP
+# echo 'eval "$(mise activate zsh --shims)"' >> ~/.zprofile # this sets up non-interactive sessions
+# echo 'eval "$(mise activate zsh)"' >> ~/.zshrc    # this sets up interactive sessions
+#
+# mise trust # (trust the mise file in this folder)
+# mise i (mise install) -> like "composer install/update" install the tool versions specified here
+#
+# Diagnosis:
+# mise doctor -> check last line "No problems found"
+# mise cfg -> which config files are read
+#
+# Important commands:
+# mise use [package] - like "composer require [package]"
+# mise use -g [package] - global install (for the user)
+# mise unuse || mise rm [package] - like "composer remove [package]"
+# mise up --bump "to upgrade all software to the latest version and update mise.toml"
+
+[tools]
+go = "1.25.5"
