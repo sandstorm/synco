@@ -151,6 +151,12 @@ func detectBaseUrlAndUpdateReceiveSession(rs *receive.ReceiveSession) error {
 			"http://" + baseUrlCandidate,
 			"https://www." + baseUrlCandidate,
 			"http://www." + baseUrlCandidate,
+			// Try with /_Resources suffix for Flow/Neos installations
+			originalBaseUrlCandidate + "/_Resources",
+			"https://" + baseUrlCandidate + "/_Resources",
+			"http://" + baseUrlCandidate + "/_Resources",
+			"https://www." + baseUrlCandidate + "/_Resources",
+			"http://www." + baseUrlCandidate + "/_Resources",
 		}
 
 		for _, candidate := range baseUrlCandidates {
