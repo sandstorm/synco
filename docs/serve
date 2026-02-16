@@ -4,7 +4,7 @@ set -ex
 # USAGE: curl https://sandstorm.github.io/synco/serve | sh -s -
 # USAGE: curl https://sandstorm.github.io/synco/serve | sh -s - --help
 
-BIN_TARGET="synco-lite"
+BIN_TARGET="/tmp/synco-lite"
 
 echo "This downloads and executes '$BIN_TARGET serve $@' in the current directory."
 
@@ -29,4 +29,4 @@ echo "Downloading $DOWNLOAD_LINK"
 curl -L -o $BIN_TARGET "$DOWNLOAD_LINK"
 chmod +x $BIN_TARGET
 
-./$BIN_TARGET serve $@
+$BIN_TARGET serve $@

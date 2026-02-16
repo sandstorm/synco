@@ -132,7 +132,7 @@ func (fp *flowPersistenceBackendOptions) ToDbCredentials() *common.DbCredentials
 }
 
 func (f flowServe) Serve(transferSession *serve.TransferSession) {
-	err := transferSession.WithFrameworkAndWebDirectory(f.Name(), "Web")
+	err := transferSession.WithFrameworkAndWebDirectory(f.Name(), "Web/_Resources")
 	if err != nil {
 		pterm.Fatal.Printfln("Error writing transferSession: %s", err)
 	}
