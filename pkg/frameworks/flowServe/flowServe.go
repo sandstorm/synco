@@ -164,14 +164,14 @@ func (f flowServe) Serve(transferSession *serve.TransferSession) {
 	if persistentTarget == nil {
 		pterm.Warning.Printfln("falling back to extracting locations from default location.")
 		// fallback to extracting resources from default location
-		extractAllResourcesFromFolder(transferSession, "./Web/_Resources/Persistent", "_Resources/Persistent")
+		extractAllResourcesFromFolder(transferSession, "./Web/_Resources/Persistent", "Persistent")
 	} else if persistentTarget.IsS3Target() {
 		pterm.Info.Printfln("Extracting resources for S3Target (baseUri=%s)", persistentTarget.TargetOptions.BaseUri)
 		extractResourcesFromS3(transferSession, db, persistentTarget, whereClauseForTables)
 	} else if persistentTarget.IsFileSystemTarget() {
 		if transferSession.DumpAll {
 			pterm.Info.Printfln("Extracting ALL resources for FileSystemTarget (path=%s, baseUri=%s)", persistentTarget.TargetOptions.Path, persistentTarget.TargetOptions.BaseUri)
-			extractAllResourcesFromFolder(transferSession, persistentTarget.TargetOptions.Path, persistentTarget.TargetOptions.BaseUri)
+			extractAllResourcesFromFolder(transferSession, persistentTarget.TargetOptions.Path, strings.TrimPrefix(persistentTarget.TargetOptions.BaseUri, "_Resources/"))
 		} else {
 			pterm.Info.Printfln("Extracting resources (but skipping thumbnails) for FileSystemTarget (path=%s, baseUri=%s)", persistentTarget.TargetOptions.Path, persistentTarget.TargetOptions.BaseUri)
 			extractResourcesFromFolderSkippingThumbnails(transferSession, db, persistentTarget, whereClauseForTables)
@@ -323,10 +323,11 @@ func extractResourcesFromFolderSkippingThumbnails(transferSession *serve.Transfe
 		escapedFileName := url.PathEscape(filename)
 		// HACK: this is how it works for Neos / Flow. Probably not all escapes done
 		escapedFileName = strings.ReplaceAll(escapedFileName, "+", "%2B")
+		adjustedBaseUri := strings.TrimPrefix(persistentTarget.TargetOptions.BaseUri, "_Resources/")
 		resourceFilesIndex["Resources/"+resourceSha1[0:1]+"/"+resourceSha1[1:2]+"/"+resourceSha1[2:3]+"/"+resourceSha1[3:4]+"/"+resourceSha1] = dto.PublicFilesIndexEntry{
 			SizeBytes: int64(filesize),
 			MTime:     0,
-			PublicUri: "<BASE>/" + persistentTarget.TargetOptions.BaseUri + resourceSha1[0:1] + "/" + resourceSha1[1:2] + "/" + resourceSha1[2:3] + "/" + resourceSha1[3:4] + "/" + resourceSha1 + "/" + escapedFileName,
+			PublicUri: "<BASE>/" + adjustedBaseUri + resourceSha1[0:1] + "/" + resourceSha1[1:2] + "/" + resourceSha1[2:3] + "/" + resourceSha1[3:4] + "/" + resourceSha1 + "/" + escapedFileName,
 		}
 	}
 	err = rows.Err()
