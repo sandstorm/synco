@@ -19,3 +19,4 @@
 
 [tools]
 go = "1.25.5"
+goreleaser = "latest"
