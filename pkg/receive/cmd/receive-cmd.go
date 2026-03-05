@@ -114,20 +114,27 @@ func detectBaseUrlAndUpdateReceiveSession(rs *receive.ReceiveSession) error {
 		return err
 	}
 	for _, host := range syncoConfig.Hosts {
-		pterm.Debug.Printfln("Trying to detect the base URL: %s", host.BaseUrl)
-		rs.BaseUrl(host.BaseUrl)
-		err = rs.DoesMetaFileExistOnServer()
-		if err == nil {
-			// we found the meta file; so we are done.
-			pterm.Success.Printfln("Found correct base URL at %s (based on %s)", host.BaseUrl, config.SyncoYamlFile)
-			// NOTE: the receiveSession is already updated; so we do not need to update anything.
-			return nil
+		// Try the configured URL as-is, and also with /_Resources suffix for Flow/Neos installations
+		candidates := []string{
+			host.BaseUrl,
+			strings.TrimSuffix(host.BaseUrl, "/") + "/_Resources",
 		}
-		if !errors.Is(err, receive.ErrMetaFileNotFound) {
-			// we got an unexpected error -> bubble up
-			return err
+		for _, candidate := range candidates {
+			pterm.Debug.Printfln("Trying to detect the base URL: %s", candidate)
+			rs.BaseUrl(candidate)
+			err = rs.DoesMetaFileExistOnServer()
+			if err == nil {
+				// we found the meta file; so we are done.
+				pterm.Success.Printfln("Found correct base URL at %s (based on %s)", candidate, config.SyncoYamlFile)
+				// NOTE: the receiveSession is already updated; so we do not need to update anything.
+				return nil
+			}
+			if !errors.Is(err, receive.ErrMetaFileNotFound) {
+				// we got an unexpected error -> bubble up
+				return err
+			}
+			// receive.ErrMetaFileNotFound -> we did not find a meta file - so we try with the next URL in the loop.
 		}
-		// receive.ErrMetaFileNotFound -> we did not find a meta file - so we try with the next URL in the loop.
 	}
 
 	pterm.Info.Printfln("Please specify the base URL of the production server (f.e. github.com).")
