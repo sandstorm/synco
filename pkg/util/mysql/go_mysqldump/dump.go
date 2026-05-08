@@ -257,19 +257,20 @@ func (data *Data) getTemplates() (err error) {
 func (data *Data) getTables() ([]string, error) {
 	tables := make([]string, 0)
 
-	rows, err := data.tx.Query("SHOW TABLES")
+	rows, err := data.tx.Query("SHOW FULL TABLES")
 	if err != nil {
 		return tables, err
 	}
 	defer rows.Close()
 
 	for rows.Next() {
-		var table sql.NullString
-		if err := rows.Scan(&table); err != nil {
+		var name, tableType sql.NullString
+		if err := rows.Scan(&name, &tableType); err != nil {
 			return tables, err
 		}
-		if table.Valid && !data.isIgnoredTable(table.String) {
-			tables = append(tables, table.String)
+		// this will exclude views from the dump
+		if name.Valid && tableType.String == "BASE TABLE" && !data.isIgnoredTable(name.String) {
+			tables = append(tables, name.String)
 		}
 	}
 	return tables, rows.Err()
@@ -310,16 +311,35 @@ func (table *table) NameEsc() string {
 }
 
 func (table *table) CreateSQL() (string, error) {
-	var tableReturn, tableSQL sql.NullString
-	if err := table.data.tx.QueryRow("SHOW CREATE TABLE "+table.NameEsc()).Scan(&tableReturn, &tableSQL); err != nil {
+	rows, err := table.data.tx.Query("SHOW CREATE TABLE " + table.NameEsc())
+	if err != nil {
+		return "", err
+	}
+	defer rows.Close()
+
+	cols, err := rows.Columns()
+	if err != nil {
 		return "", err
 	}
 
-	if tableReturn.String != table.Name {
-		return "", errors.New("Returned table is not the same as requested table")
+	if !rows.Next() {
+		return "", errors.New("no rows returned for SHOW CREATE TABLE")
 	}
 
-	return tableSQL.String, nil
+	dest := make([]interface{}, len(cols))
+	vals := make([]sql.NullString, len(cols))
+	for i := range vals {
+		dest[i] = &vals[i]
+	}
+	if err := rows.Scan(dest...); err != nil {
+		return "", err
+	}
+
+	// vals[0] = table name, vals[1] = CREATE TABLE statement
+	if vals[0].String != table.Name {
+		return "", errors.New("Returned table is not the same as requested table")
+	}
+	return vals[1].String, nil
 }
 
 func (table *table) initColumnData() error {
