@@ -257,19 +257,20 @@ func (data *Data) getTemplates() (err error) {
 func (data *Data) getTables() ([]string, error) {
 	tables := make([]string, 0)
 
-	rows, err := data.tx.Query("SHOW TABLES")
+	rows, err := data.tx.Query("SHOW FULL TABLES")
 	if err != nil {
 		return tables, err
 	}
 	defer rows.Close()
 
 	for rows.Next() {
-		var table sql.NullString
-		if err := rows.Scan(&table); err != nil {
+		var name, tableType sql.NullString
+		if err := rows.Scan(&name, &tableType); err != nil {
 			return tables, err
 		}
-		if table.Valid && !data.isIgnoredTable(table.String) {
-			tables = append(tables, table.String)
+		// this will exclude views from the dump
+		if name.Valid && tableType.String == "BASE TABLE" && !data.isIgnoredTable(name.String) {
+			tables = append(tables, name.String)
 		}
 	}
 	return tables, rows.Err()
