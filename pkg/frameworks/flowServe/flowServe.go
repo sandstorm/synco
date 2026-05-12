@@ -267,6 +267,8 @@ func extractResourcesFromS3(transferSession *serve.TransferSession, db *sql.DB, 
 
 	var resourceSha1, filename string
 	var filesize uint64
+	var filePath string
+	var fileEntry dto.PublicFilesIndexEntry
 	for rows.Next() {
 		err := rows.Scan(&resourceSha1, &filename, &filesize)
 		if err != nil {
@@ -274,14 +276,9 @@ func extractResourcesFromS3(transferSession *serve.TransferSession, db *sql.DB, 
 		}
 
 		totalSizeBytes += filesize
-		escapedFileName := url.PathEscape(filename)
-		// HACK: this is how it works for Neos / Flow. Probably not all escapes done
-		escapedFileName = strings.ReplaceAll(escapedFileName, "+", "%2B")
-		resourceFilesIndex["Resources/"+resourceSha1[0:1]+"/"+resourceSha1[1:2]+"/"+resourceSha1[2:3]+"/"+resourceSha1[3:4]+"/"+resourceSha1] = dto.PublicFilesIndexEntry{
-			SizeBytes: int64(filesize),
-			MTime:     0,
-			PublicUri: persistentTarget.TargetOptions.BaseUri + resourceSha1 + "/" + escapedFileName,
-		}
+
+		filePath, fileEntry = generateResourcePathForS3(filename, resourceSha1, filesize, persistentTarget)
+		resourceFilesIndex[filePath] = fileEntry
 	}
 	err = rows.Err()
 	if err != nil {
@@ -289,6 +286,21 @@ func extractResourcesFromS3(transferSession *serve.TransferSession, db *sql.DB, 
 	}
 
 	commonServe.WriteResourcesIndex(transferSession, dto.TYPE_PUBLICFILES, FlowResources, resourceFilesIndex, totalSizeBytes)
+}
+
+func generateResourcePathForS3(filename string, resourceSha1 string, filesize uint64, persistentTarget *flowResourceTarget) (string, dto.PublicFilesIndexEntry) {
+	escapedFileName := url.PathEscape(filename)
+	// HACK: this is how it works for Neos / Flow. Probably not all escapes done
+	escapedFileName = strings.ReplaceAll(escapedFileName, "+", "%2B")
+
+	filePath := "Resources/" + resourceSha1[0:1] + "/" + resourceSha1[1:2] + "/" + resourceSha1[2:3] + "/" + resourceSha1[3:4] + "/" + resourceSha1
+	fileEntry := dto.PublicFilesIndexEntry{
+		SizeBytes: int64(filesize),
+		MTime:     0,
+		PublicUri: persistentTarget.TargetOptions.BaseUri + resourceSha1 + "/" + escapedFileName,
+	}
+
+	return filePath, fileEntry
 }
 
 func extractResourcesFromFolderSkippingThumbnails(transferSession *serve.TransferSession, db *sql.DB, persistentTarget *flowResourceTarget, whereClauseForTables map[string]string) {
