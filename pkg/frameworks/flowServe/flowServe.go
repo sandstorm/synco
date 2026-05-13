@@ -93,7 +93,10 @@ type flowResourceTarget struct {
 		// f.e. prod-neos-cdn
 		Bucket string `yaml:"bucket"`
 		// f.e. resources/ - see BaseUri
-		KeyPrefix string `yaml:"keyPrefix"`
+		KeyPrefix              string `yaml:"keyPrefix"`
+		PersistentResourceUris struct {
+			Pattern string `yaml:"pattern"`
+		} `yaml:"persistentResourceUris"`
 	} `yaml:"targetOptions"`
 }
 
@@ -274,13 +277,11 @@ func extractResourcesFromS3(transferSession *serve.TransferSession, db *sql.DB, 
 		}
 
 		totalSizeBytes += filesize
-		escapedFileName := url.PathEscape(filename)
-		// HACK: this is how it works for Neos / Flow. Probably not all escapes done
-		escapedFileName = strings.ReplaceAll(escapedFileName, "+", "%2B")
 		resourceFilesIndex["Resources/"+resourceSha1[0:1]+"/"+resourceSha1[1:2]+"/"+resourceSha1[2:3]+"/"+resourceSha1[3:4]+"/"+resourceSha1] = dto.PublicFilesIndexEntry{
-			SizeBytes: int64(filesize),
-			MTime:     0,
-			PublicUri: persistentTarget.TargetOptions.BaseUri + resourceSha1 + "/" + escapedFileName,
+			SizeBytes:     int64(filesize),
+			MTime:         0,
+			PublicUri:     generateS3ResourcePublicPath(persistentTarget, resourceSha1, filename),
+			IsAbsoluteUrl: true,
 		}
 	}
 	err = rows.Err()
@@ -289,6 +290,26 @@ func extractResourcesFromS3(transferSession *serve.TransferSession, db *sql.DB, 
 	}
 
 	commonServe.WriteResourcesIndex(transferSession, dto.TYPE_PUBLICFILES, FlowResources, resourceFilesIndex, totalSizeBytes)
+}
+
+// generateS3ResourcePublicPath replicates S3Target::getPublicPersistentResourceUri
+// https://github.com/flownative/flow-aws-s3/blob/main/Classes/S3Target.php#L465
+func generateS3ResourcePublicPath(persistentTarget *flowResourceTarget, resourceSha1 string, filename string) string {
+	if pattern := persistentTarget.TargetOptions.PersistentResourceUris.Pattern; pattern != "" {
+		return strings.NewReplacer(
+			"{baseUri}", persistentTarget.TargetOptions.BaseUri,
+			"{bucketName}", persistentTarget.TargetOptions.Bucket,
+			"{keyPrefix}", persistentTarget.TargetOptions.KeyPrefix,
+			"{sha1}", resourceSha1,
+			"{filename}", filename,
+			"{fileExtension}", strings.TrimPrefix(filepath.Ext(filename), "."),
+		).Replace(pattern)
+	}
+
+	// HACK: this is how it works for Neos / Flow. Probably not all escapes done
+	escapedFileName := url.PathEscape(filename)
+	escapedFileName = strings.ReplaceAll(escapedFileName, "+", "%2B")
+	return persistentTarget.TargetOptions.BaseUri + resourceSha1 + "/" + escapedFileName
 }
 
 func extractResourcesFromFolderSkippingThumbnails(transferSession *serve.TransferSession, db *sql.DB, persistentTarget *flowResourceTarget, whereClauseForTables map[string]string) {
@@ -325,9 +346,10 @@ func extractResourcesFromFolderSkippingThumbnails(transferSession *serve.Transfe
 		escapedFileName = strings.ReplaceAll(escapedFileName, "+", "%2B")
 		adjustedBaseUri := strings.TrimPrefix(persistentTarget.TargetOptions.BaseUri, "_Resources/")
 		resourceFilesIndex["Resources/"+resourceSha1[0:1]+"/"+resourceSha1[1:2]+"/"+resourceSha1[2:3]+"/"+resourceSha1[3:4]+"/"+resourceSha1] = dto.PublicFilesIndexEntry{
-			SizeBytes: int64(filesize),
-			MTime:     0,
-			PublicUri: "<BASE>/" + adjustedBaseUri + resourceSha1[0:1] + "/" + resourceSha1[1:2] + "/" + resourceSha1[2:3] + "/" + resourceSha1[3:4] + "/" + resourceSha1 + "/" + escapedFileName,
+			SizeBytes:     int64(filesize),
+			MTime:         0,
+			PublicUri:     adjustedBaseUri + resourceSha1[0:1] + "/" + resourceSha1[1:2] + "/" + resourceSha1[2:3] + "/" + resourceSha1[3:4] + "/" + resourceSha1 + "/" + escapedFileName,
+			IsAbsoluteUrl: false,
 		}
 	}
 	err = rows.Err()
@@ -378,9 +400,10 @@ func extractAllResourcesFromFolder(transferSession *serve.TransferSession, persi
 
 			totalSizeBytes += uint64(realFileInfo.Size())
 			resourceFilesIndex["Resources/"+resourceSha1[0:1]+"/"+resourceSha1[1:2]+"/"+resourceSha1[2:3]+"/"+resourceSha1[3:4]+"/"+resourceSha1] = dto.PublicFilesIndexEntry{
-				SizeBytes: int64(realFileInfo.Size()),
-				MTime:     realFileInfo.ModTime().Unix(),
-				PublicUri: "<BASE>/" + publicUri,
+				SizeBytes:     int64(realFileInfo.Size()),
+				MTime:         realFileInfo.ModTime().Unix(),
+				PublicUri:     publicUri,
+				IsAbsoluteUrl: false,
 			}
 			return nil
 		})

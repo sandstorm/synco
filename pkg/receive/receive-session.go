@@ -6,11 +6,7 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"errors"
-	"filippo.io/age"
 	"fmt"
-	"github.com/pterm/pterm"
-	"github.com/sandstorm/synco/v2/pkg/common/dto"
-	"github.com/sandstorm/synco/v2/pkg/ui/boolselect"
 	"io"
 	"net"
 	"net/http"
@@ -20,6 +16,11 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"filippo.io/age"
+	"github.com/pterm/pterm"
+	"github.com/sandstorm/synco/v2/pkg/common/dto"
+	"github.com/sandstorm/synco/v2/pkg/ui/boolselect"
 )
 
 type State string
@@ -219,13 +220,15 @@ func (rs *ReceiveSession) FetchAndDecryptFileWithProgressBar(fileName string) (*
 	return buf, nil
 }
 
-func (rs *ReceiveSession) FetchFileWithProgressBar(fileName string, progress *pterm.ProgressbarPrinter) (*bytes.Buffer, error) {
+func (rs *ReceiveSession) FetchFileWithProgressBar(fileName string, fileDefinition dto.PublicFilesIndexEntry, progress *pterm.ProgressbarPrinter) (*bytes.Buffer, error) {
 	var urlToLoad string
 	var err error
 	if strings.HasPrefix(fileName, "http://") || strings.HasPrefix(fileName, "https://") {
 		urlToLoad = fileName
+	} else if fileDefinition.IsAbsoluteUrl {
+		urlToLoad = strings.ReplaceAll(*rs.baseUrl, "/_Resources", "") + fileDefinition.PublicUri
 	} else {
-		urlToLoad, err = url.JoinPath(*rs.baseUrl, rs.identifier, fileName)
+		urlToLoad, err = url.JoinPath(*rs.baseUrl, strings.ReplaceAll(fileDefinition.PublicUri, "<BASE>", ""))
 		if err != nil {
 			return nil, err
 		}
@@ -303,12 +306,12 @@ func (rs *ReceiveSession) DumpAndDecryptFileWithProgressBar(remoteFileName strin
 	return nil
 }
 
-func (rs *ReceiveSession) DumpFileWithProgressBar(remoteFileName string, localFileName string, progress *pterm.ProgressbarPrinter) error {
-	contents, err := rs.FetchFileWithProgressBar(remoteFileName, progress)
+func (rs *ReceiveSession) DumpFileWithProgressBar(fileName string, fileDefinition dto.PublicFilesIndexEntry, progress *pterm.ProgressbarPrinter) error {
+	contents, err := rs.FetchFileWithProgressBar(fileName, fileDefinition, progress)
 	if err != nil {
 		return err
 	}
-	workdirFilePath := rs.filepathInWorkDir(localFileName)
+	workdirFilePath := rs.filepathInWorkDir(fileName)
 	err = os.MkdirAll(filepath.Dir(workdirFilePath), 0755)
 	if err != nil {
 		return err

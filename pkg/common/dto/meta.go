@@ -2,8 +2,9 @@ package dto
 
 import (
 	"fmt"
-	"github.com/dustin/go-humanize"
 	"strings"
+
+	"github.com/dustin/go-humanize"
 )
 
 const (
@@ -100,7 +101,8 @@ type FileSetPrivateEncryptedFiles struct {
 type PublicFilesIndex map[string]PublicFilesIndexEntry
 
 type PublicFilesIndexEntry struct {
-	SizeBytes int64  `json:"sizeBytes"`
-	MTime     int64  `json:"mTime"`
-	PublicUri string `json:"publicUri"`
+	SizeBytes     int64  `json:"sizeBytes"`
+	MTime         int64  `json:"mTime"`
+	PublicUri     string `json:"publicUri"`
+	IsAbsoluteUrl bool   `json:"isAbsoluteUrl"`
 }
