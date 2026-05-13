@@ -6,6 +6,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net/url"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
+
 	"github.com/pterm/pterm"
 	"github.com/repeale/fp-go"
 	"github.com/sandstorm/synco/v2/pkg/common/config"
@@ -15,12 +22,6 @@ import (
 	"github.com/sandstorm/synco/v2/pkg/ui/multiselect"
 	"github.com/sandstorm/synco/v2/pkg/ui/textinput"
 	"github.com/spf13/cobra"
-	"io"
-	"net/url"
-	"os"
-	"path/filepath"
-	"strings"
-	"time"
 )
 
 var interactive bool
@@ -264,8 +265,10 @@ func downloadPublicFiles(receiveSession *receive.ReceiveSession, fileSet *dto.Fi
 
 		// the default base URL is the transfer session, which is by convention placed INSIDE the web root.
 		// so we need to go one level up when finding <BASE>
-		// TODO: this is a bit brittle - but for now it works.
-		err = receiveSession.DumpFileWithProgressBar(strings.ReplaceAll(fileDefinition.PublicUri, "<BASE>", ".."), fileName, progress)
+
+		// TODO: this is a bit brittle - but for now it works
+		// TODO keep BASE replace, when starting with / (without base) => use HOST_NAME before.
+		err = receiveSession.DumpFileWithProgressBar(fileName, fileDefinition, progress)
 		if err != nil {
 			pterm.Error.Printfln("error on downloading %s to %s: %w - continuing with next file", fileDefinition.PublicUri, fileName, err)
 			// continue with next iteration
