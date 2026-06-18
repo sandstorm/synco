@@ -113,6 +113,14 @@ curl https://sandstorm.github.io/synco/serve | sh -s - --debug
 # like thumbnails which can be regenerated on the client)
 curl https://sandstorm.github.io/synco/serve | sh -s - --all
 
+# By default the latest release is used. Check for available
+# releases at https://github.com/sandstorm/synco/releases. To download a 
+# specific tagged release, pass the version (e.g. v2.3.0) as the FIRST argument:
+curl https://sandstorm.github.io/synco/serve | sh -s - v2.3.0
+
+# a specific version can be combined with the flags above:
+curl https://sandstorm.github.io/synco/serve | sh -s - v2.3.0 --debug
+
 
 # For Neos/Flow: To use a specific Flow context, do the following:
 export FLOW_CONTEXT=Production
