@@ -7,7 +7,17 @@ import (
 	"os/signal"
 )
 
+// These variables are set at build time via -ldflags by GoReleaser (see .goreleaser.yml).
+var (
+	version = "dev"
+	commit  = "none"
+	date    = "unknown"
+	builtBy = "unknown"
+)
+
 func main() {
+	cmd.SetVersionInfo(version, commit, date, builtBy)
+
 	//kubernetes.KubernetesInit()
 
 	// Fetch user interrupt - WORKAROUND: Somehow, this only works when in main.go - if we move it somewhere else, it will break.
