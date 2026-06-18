@@ -3,10 +3,24 @@ set -ex
 
 # USAGE: curl https://sandstorm.github.io/synco/serve | sh -s -
 # USAGE: curl https://sandstorm.github.io/synco/serve | sh -s - --help
+#
+# To download a specific tagged release instead of the latest one, pass the
+# version (e.g. v2.3.0) as the FIRST argument:
+# USAGE: curl https://sandstorm.github.io/synco/serve | sh -s - v2.3.0
+# USAGE: curl https://sandstorm.github.io/synco/serve | sh -s - v2.3.0 --debug
 
 BIN_TARGET="/tmp/synco-lite"
 
-echo "This downloads and executes '$BIN_TARGET serve $@' in the current directory."
+# The first argument may optionally be a version (a tagged release like v2.3.0).
+# We detect it as anything that does not start with a "-" (which would be a flag).
+# If no version is given, we default to "latest".
+VERSION="latest"
+if [ -n "$1" ] && [ "${1#-}" = "$1" ]; then
+  VERSION="$1"
+  shift
+fi
+
+echo "This downloads and executes '$BIN_TARGET serve $@' (version: $VERSION) in the current directory."
 
 # we always want to re-download synco
 rm -Rf "$BIN_TARGET"
@@ -24,7 +38,12 @@ if [ "$OS_TYPE" = "FreeBSD" ]; then
   fi
 fi
 
-DOWNLOAD_LINK="https://github.com/sandstorm/synco/releases/latest/download/synco-lite_${OS_TYPE}_${ARCH_TYPE}"
+# differentiate the two URL patterns Github uses - latest is different from tagged releases
+if [ "$VERSION" = "latest" ]; then
+  DOWNLOAD_LINK="https://github.com/sandstorm/synco/releases/latest/download/synco-lite_${OS_TYPE}_${ARCH_TYPE}"
+else
+  DOWNLOAD_LINK="https://github.com/sandstorm/synco/releases/download/${VERSION}/synco-lite_${OS_TYPE}_${ARCH_TYPE}"
+fi
 echo "Downloading $DOWNLOAD_LINK"
 curl -L -o $BIN_TARGET "$DOWNLOAD_LINK"
 chmod +x $BIN_TARGET
