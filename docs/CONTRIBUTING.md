@@ -57,7 +57,42 @@ If you don't have Docker available, run `make test-unit` instead — it skips th
 
 ## Releasing new versions
 
-### Prerequisites for releasing
+### Doing the release (via CI — the normal way)
+
+Releases happen **automatically in GitHub Actions**. The
+[`release` workflow](../.github/workflows/release.yml) is triggered by pushing a
+tag and runs `goreleaser release --clean` for you, building all target platforms
+and publishing the GitHub Release with the artifacts.
+
+So a release is just a tag push:
+
+```
+TAG=v0.9.0; git tag $TAG; git push origin $TAG
+```
+
+> [!note]
+> Do **not** also run `goreleaser release` locally for the same tag — CI already
+> does it. Running it locally as well would collide with the CI run (both try to
+> create the same GitHub Release and upload the same assets).
+
+On every push and pull request, the
+[`release-test` workflow](../.github/workflows/release-test.yml) additionally
+runs the test suite and a snapshot build (`--snapshot --skip=publish`) so release
+problems surface before you tag.
+
+### Testing a release locally
+
+To dry-run the release build locally (no publishing), you don't need any tokens:
+
+```
+goreleaser release --snapshot --skip=publish --clean --verbose
+```
+
+### Doing the release locally (fallback / reference)
+
+Normally you should let CI publish (see above). If you ever need to publish a
+release from your machine — e.g. CI is unavailable — you can run goreleaser
+yourself:
 
 1. ensure you have [goreleaser](https://goreleaser.com/) installed:
 
@@ -69,26 +104,20 @@ If you don't have Docker available, run `make test-unit` instead — it skips th
 
 3. put the just-created token into the file `~/.config/goreleaser/github_token`
 
-
-### Doing the release
-
-Testing a release:
-
-```
-goreleaser release --snapshot --skip=publish --clean --verbose
-```
-
-Executing a release:
-
-1. Commit all changes, create a new tag and push it.
+4. Commit all changes, create a new tag and push it:
 
 ```
 TAG=v0.9.0; git tag $TAG; git push origin $TAG
 ```
 
-2. run goreleaser:
+5. run goreleaser:
 
 ```
 goreleaser release --clean
 ```
+
+> [!important]
+> Because pushing the tag already triggers the CI release, only publish locally
+> if the CI run did not (or cannot) run for that tag — otherwise the two will
+> conflict.
 
