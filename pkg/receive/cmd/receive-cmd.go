@@ -270,7 +270,7 @@ func downloadPublicFiles(receiveSession *receive.ReceiveSession, fileSet *dto.Fi
 		// TODO keep BASE replace, when starting with / (without base) => use HOST_NAME before.
 		err = receiveSession.DumpFileWithProgressBar(fileName, fileDefinition, progress)
 		if err != nil {
-			pterm.Error.Printfln("error on downloading %s to %s: %w - continuing with next file", fileDefinition.PublicUri, fileName, err)
+			pterm.Error.Printfln("error on downloading %s to %s: %v - continuing with next file", fileDefinition.PublicUri, fileName, err)
 			// continue with next iteration
 		} else {
 			// set the desired modification time to the server's modification time (for change tracking)

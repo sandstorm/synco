@@ -2,16 +2,24 @@
 chmod 755 flow
 
 # server part
-exec synco serve --debug --id abcde --password super-secret-pass --listen :8882 &
+# --all makes resource extraction walk the filesystem target folder instead of
+# querying the (here non-existent) neos_flow_resourcemanagement_persistentresource table.
+exec synco serve --debug --all --id abcde --password super-secret-pass --listen :8882 &
 fileContentWithTimeout $WORK/Web/_Resources/synco-abcde/state Ready 10s
 
 # client part
-exec synco receive --debug http://127.0.0.1:8882 super-secret-pass --interactive=false
+# the base URL of the production server is read from .synco.yml (see below)
+exec synco receive --debug synco-abcde super-secret-pass --interactive=false
+
+-- .synco.yml --
+hosts:
+  - baseUrl: http://127.0.0.1:8882
 
 -- flow --
 #!/usr/bin/env bash
 
-# This file is a fake ./flow CLI which can fake returning persistence options.
+# This file is a fake ./flow CLI which can fake returning persistence options
+# and resource configuration.
 
 if [[ "$@" == "configuration:show --type Settings --path Neos.Flow.persistence.backendOptions" ]]; then
 
@@ -27,6 +35,22 @@ charset: utf8mb4
 defaultTableOptions:
     charset: utf8mb4
 port: $DB_PORT
+EOF
+
+elif [[ "$@" == "configuration:show --type Settings --path Neos.Flow.resource" ]]; then
+
+    cat << EOF
+Configuration "Settings: Neos.Flow.resource":
+
+collections:
+  persistent:
+    target: localWebDirectoryPersistentResourcesTarget
+targets:
+  localWebDirectoryPersistentResourcesTarget:
+    target: Neos\Flow\ResourceManagement\Target\FileSystemSymlinkTarget
+    targetOptions:
+      path: ./Web/_Resources/Persistent/
+      baseUri: _Resources/Persistent/
 EOF
 
 else

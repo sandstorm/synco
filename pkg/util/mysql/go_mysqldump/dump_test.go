@@ -44,11 +44,11 @@ func TestGetTablesOk(t *testing.T) {
 	assert.NoError(t, err, "an error was not expected when opening a stub database connection")
 	defer data.Close()
 
-	rows := sqlmock.NewRows([]string{"Tables_in_Testdb"}).
-		AddRow("Test_Table_1").
-		AddRow("Test_Table_2")
+	rows := sqlmock.NewRows([]string{"Tables_in_Testdb", "Table_type"}).
+		AddRow("Test_Table_1", "BASE TABLE").
+		AddRow("Test_Table_2", "BASE TABLE")
 
-	mock.ExpectQuery("^SHOW TABLES$").WillReturnRows(rows)
+	mock.ExpectQuery("^SHOW FULL TABLES$").WillReturnRows(rows)
 
 	result, err := data.getTables()
 	assert.NoError(t, err)
@@ -64,11 +64,11 @@ func TestIgnoreTablesOk(t *testing.T) {
 	assert.NoError(t, err, "an error was not expected when opening a stub database connection")
 	defer data.Close()
 
-	rows := sqlmock.NewRows([]string{"Tables_in_Testdb"}).
-		AddRow("Test_Table_1").
-		AddRow("Test_Table_2")
+	rows := sqlmock.NewRows([]string{"Tables_in_Testdb", "Table_type"}).
+		AddRow("Test_Table_1", "BASE TABLE").
+		AddRow("Test_Table_2", "BASE TABLE")
 
-	mock.ExpectQuery("^SHOW TABLES$").WillReturnRows(rows)
+	mock.ExpectQuery("^SHOW FULL TABLES$").WillReturnRows(rows)
 
 	data.IgnoreTables = []string{"Test_Table_1"}
 
@@ -86,12 +86,12 @@ func TestGetTablesNil(t *testing.T) {
 	assert.NoError(t, err, "an error was not expected when opening a stub database connection")
 	defer data.Close()
 
-	rows := sqlmock.NewRows([]string{"Tables_in_Testdb"}).
-		AddRow("Test_Table_1").
-		AddRow(nil).
-		AddRow("Test_Table_3")
+	rows := sqlmock.NewRows([]string{"Tables_in_Testdb", "Table_type"}).
+		AddRow("Test_Table_1", "BASE TABLE").
+		AddRow(nil, "BASE TABLE").
+		AddRow("Test_Table_3", "BASE TABLE")
 
-	mock.ExpectQuery("^SHOW TABLES$").WillReturnRows(rows)
+	mock.ExpectQuery("^SHOW FULL TABLES$").WillReturnRows(rows)
 
 	result, err := data.getTables()
 	assert.NoError(t, err)
@@ -158,7 +158,7 @@ func mockTableSelect(mock sqlmock.Sqlmock, name string) {
 		AddRow(2, "test2@test.de", "Test Name 2")
 
 	mock.ExpectQuery("^SHOW COLUMNS FROM `" + name + "`$").WillReturnRows(cols)
-	mock.ExpectQuery("^SELECT (.+) FROM `" + name + "`$").WillReturnRows(rows)
+	mock.ExpectQuery("^SELECT (.+) FROM `" + name + "` WHERE TRUE$").WillReturnRows(rows)
 }
 
 func TestCreateTableRowValues(t *testing.T) {
@@ -234,7 +234,7 @@ func TestCreateTableAllValuesWithNil(t *testing.T) {
 		AddRow(3, "", "Test Name 3")
 
 	mock.ExpectQuery("^SHOW COLUMNS FROM `test`$").WillReturnRows(cols)
-	mock.ExpectQuery("^SELECT (.+) FROM `test`$").WillReturnRows(rows)
+	mock.ExpectQuery("^SELECT (.+) FROM `test` WHERE TRUE$").WillReturnRows(rows)
 
 	table := data.createTable("test")
 
@@ -272,7 +272,7 @@ func TestCreateTableOk(t *testing.T) {
 
 	mock.ExpectQuery("^SHOW CREATE TABLE `Test_Table`$").WillReturnRows(createTableRows)
 	mock.ExpectQuery("^SHOW COLUMNS FROM `Test_Table`$").WillReturnRows(createTableValueCols)
-	mock.ExpectQuery("^SELECT (.+) FROM `Test_Table`$").WillReturnRows(createTableValueRows)
+	mock.ExpectQuery("^SELECT (.+) FROM `Test_Table` WHERE TRUE$").WillReturnRows(createTableValueRows)
 
 	var buf bytes.Buffer
 	data.Out = &buf
@@ -297,6 +297,7 @@ DROP TABLE IF EXISTS ~Test_Table~;
  SET character_set_client = utf8mb4 ;
 CREATE TABLE 'Test_Table' (~id~ int(11) NOT NULL AUTO_INCREMENT,~s~ char(60) DEFAULT NULL, PRIMARY KEY (~id~))ENGINE=InnoDB DEFAULT CHARSET=latin1;
 /*!40101 SET character_set_client = @saved_cs_client */;
+
 
 --
 -- Dumping data for table ~Test_Table~
@@ -331,7 +332,7 @@ func TestCreateTableOkSmallPackets(t *testing.T) {
 
 	mock.ExpectQuery("^SHOW CREATE TABLE `Test_Table`$").WillReturnRows(createTableRows)
 	mock.ExpectQuery("^SHOW COLUMNS FROM `Test_Table`$").WillReturnRows(createTableValueCols)
-	mock.ExpectQuery("^SELECT (.+) FROM `Test_Table`$").WillReturnRows(createTableValueRows)
+	mock.ExpectQuery("^SELECT (.+) FROM `Test_Table` WHERE TRUE$").WillReturnRows(createTableValueRows)
 
 	var buf bytes.Buffer
 	data.Out = &buf
@@ -356,6 +357,7 @@ DROP TABLE IF EXISTS ~Test_Table~;
  SET character_set_client = utf8mb4 ;
 CREATE TABLE 'Test_Table' (~id~ int(11) NOT NULL AUTO_INCREMENT,~s~ char(60) DEFAULT NULL, PRIMARY KEY (~id~))ENGINE=InnoDB DEFAULT CHARSET=latin1;
 /*!40101 SET character_set_client = @saved_cs_client */;
+
 
 --
 -- Dumping data for table ~Test_Table~

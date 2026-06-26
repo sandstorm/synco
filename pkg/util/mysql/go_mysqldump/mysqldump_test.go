@@ -3,7 +3,6 @@ package go_mysqldump
 import (
 	"bytes"
 	"io/ioutil"
-	"reflect"
 	"strings"
 	"testing"
 
@@ -72,19 +71,6 @@ func mockColumnRows() *sqlmock.Rows {
 		AddRow("email", "varchar(255)", true, nil, nil, "").
 		AddRow("name", "varchar(255)", true, nil, nil, "").
 		AddRow("hash", "varchar(255)", true, nil, nil, "VIRTUAL GENERATED")
-}
-
-func c(name string, v interface{}) *sqlmock.Column {
-	var t string
-	switch reflect.ValueOf(v).Kind() {
-	case reflect.String:
-		t = "VARCHAR"
-	case reflect.Int:
-		t = "INT"
-	case reflect.Bool:
-		t = "BOOL"
-	}
-	return sqlmock.NewColumn(name).OfType(t, v).Nullable(true)
 }
 
 func RunDump(t testing.TB, data *mysqldump.Data) {

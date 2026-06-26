@@ -36,6 +36,25 @@ kubectl cp build/synco-lite POD-NAME-HERE:/tmp/synco-lite
 > `failed to decrypt and authenticate payload chunk`. It looks like corruption
 > or a wrong password, but the real cause is the arch mismatch.
 
+## Running the tests
+
+```bash
+# unit tests only (no external dependencies)
+make test-unit
+
+# full suite, including the end-to-end tests
+make test
+```
+
+The end-to-end tests in `test_e2e/` spin up a MariaDB container via
+[gnomock](https://github.com/orlangure/gnomock), so `make test` requires a
+**running Docker daemon**. They reuse a container named `synco-test-flow`
+between runs to stay fast; remove it with `docker rm -f synco-test-flow` if you
+need a clean database.
+
+If you don't have Docker available, run `make test-unit` instead — it skips the
+`test_e2e` package and has no external dependencies.
+
 ## Releasing new versions
 
 ### Prerequisites for releasing
