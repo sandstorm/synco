@@ -18,5 +18,5 @@
 # mise up --bump "to upgrade all software to the latest version and update mise.toml"
 
 [tools]
-go = "1.25.5"
+go = "1.26.0"
 goreleaser = "latest"
