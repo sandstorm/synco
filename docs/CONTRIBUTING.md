@@ -14,14 +14,27 @@ and then run `make`.
 for testing with locally built synco-lite versions, you can upload your locally built synco:
 
 ```bash
-# build synco for Linux
-GOOS=linux GOARCH=amd64 make synco-lite
+# build synco for Linux (match the TARGET's CPU architecture, see note below)
+GOOS=linux GOARCH=amd64 make synco-lite   # or GOARCH=arm64
 
 # upload synco to the remote system
 scp build/synco-lite .....
 # or:
 kubectl cp build/synco-lite POD-NAME-HERE:/tmp/synco-lite
 ```
+
+> [!important]
+> **Build for the target's CPU architecture.** Set `GOARCH` to match where the
+> binary will run — `arm64` for an `aarch64` host/container (e.g. a Docker
+> Desktop container on Apple Silicon), `amd64` for `x86_64`. Check with
+> `uname -m` on the target (`docker compose exec <service> uname -m`).
+>
+> A mismatched binary runs under emulation, and emulated ChaCha20-Poly1305 SIMD
+> (from `golang.org/x/crypto`) produces **wrong** output for multi-block
+> payloads. The failure is misleading: `synco receive` reports a valid
+> decryption key (the age header decrypts), then fails on the payload with
+> `failed to decrypt and authenticate payload chunk`. It looks like corruption
+> or a wrong password, but the real cause is the arch mismatch.
 
 ## Releasing new versions
 
