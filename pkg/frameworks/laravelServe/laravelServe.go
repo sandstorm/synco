@@ -249,7 +249,7 @@ func encryptAndExtractAllResourcesFromFolder(transferSession *serve.TransferSess
 
 	wd, err := os.Getwd()
 	if err != nil {
-		pterm.Error.Printfln("Could NOT find working directory:", err)
+		pterm.Error.Printfln("Could NOT find working directory: %v", err)
 		return
 	}
 
