@@ -162,7 +162,7 @@ func (ts *TransferSession) EncryptFileToFile(srcFileName string, destFileName st
 }
 
 func (ts *TransferSession) EncryptToFile(fileName string) (WriteCloserWithSize, error) {
-	targetFile, err := os.OpenFile(ts.filepathInWorkDir(fileName), os.O_WRONLY|os.O_CREATE, 0644)
+	targetFile, err := os.OpenFile(ts.filepathInWorkDir(fileName), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
 		return nil, err
 	}
