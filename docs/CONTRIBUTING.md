@@ -56,7 +56,7 @@ kubectl cp build/synco-lite POD-NAME-HERE:/tmp/synco-lite
 Testing a release:
 
 ```
-goreleaser --snapshot --skip-publish --rm-dist --debug
+goreleaser release --snapshot --skip=publish --clean --verbose
 ```
 
 Executing a release:
@@ -64,12 +64,12 @@ Executing a release:
 1. Commit all changes, create a new tag and push it.
 
 ```
-TAG=v0.9.0 git tag $TAG; git push origin $TAG
+TAG=v0.9.0; git tag $TAG; git push origin $TAG
 ```
 
 2. run goreleaser:
 
 ```
-goreleaser --rm-dist
+goreleaser release --clean
 ```
 

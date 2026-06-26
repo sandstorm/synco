@@ -87,17 +87,17 @@ archives:
       {{- if eq .Arch "amd64" }}x86_64
       {{- else if eq .Arch "386" }}i386
       {{- else }}{{ .Arch }}{{ end }}
-    builds:
+    ids:
       - synco
     format_overrides:
       - goos: windows
-        format: zip
+        formats: [zip]
 
   # synco-lite, without zip file.
   # needed for "curl https://synco.github.io/synco | sh" script to work
   - id: synco_not_zipped
-    format: binary
-    builds:
+    formats: [binary]
+    ids:
       - synco
     name_template: >-
       synco_
@@ -109,8 +109,8 @@ archives:
   # synco-lite, without zip file.
   # needed for "curl https://synco.github.io/serve | sh" script to work
   - id: synco-lite
-    format: binary
-    builds:
+    formats: [binary]
+    ids:
       - synco-lite
     name_template: >-
       synco-lite_
