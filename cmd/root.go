@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"fmt"
+
 	cmd2 "github.com/sandstorm/synco/v2/pkg/receive/cmd"
 	"github.com/sandstorm/synco/v2/pkg/serve/cmd"
 	"github.com/spf13/cobra"
@@ -35,6 +37,17 @@ synco receive http://your-server/abcde password-from-server`,
 	//
 	// 	return nil
 	// },
+}
+
+// SetVersionInfo wires the build-time version metadata (injected via -ldflags, see
+// .goreleaser.yml) into the root command so that "synco --version" reports it.
+// It must be called before Execute().
+func SetVersionInfo(version, commit, date, builtBy string) {
+	rootCmd.Version = version
+	rootCmd.SetVersionTemplate(fmt.Sprintf(
+		"synco {{.Version}}\ncommit: %s\nbuilt at: %s\nbuilt by: %s\n",
+		commit, date, builtBy,
+	))
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
