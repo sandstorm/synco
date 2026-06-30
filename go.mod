@@ -16,7 +16,7 @@ require (
 	github.com/orlangure/gnomock v0.23.0
 	github.com/pterm/pterm v0.12.83
 	github.com/repeale/fp-go v0.11.1
-	github.com/rogpeppe/go-internal v1.14.1
+	github.com/rogpeppe/go-internal v1.15.0
 	github.com/spf13/cobra v1.6.1
 	github.com/stretchr/testify v1.11.1
 	gopkg.in/yaml.v3 v3.0.1
