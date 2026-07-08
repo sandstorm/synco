@@ -223,8 +223,10 @@ func (rs *ReceiveSession) FetchAndDecryptFileWithProgressBar(fileName string) (*
 func (rs *ReceiveSession) FetchFileWithProgressBar(fileName string, fileDefinition dto.PublicFilesIndexEntry, progress *pterm.ProgressbarPrinter) (*bytes.Buffer, error) {
 	var urlToLoad string
 	var err error
-	if strings.HasPrefix(fileName, "http://") || strings.HasPrefix(fileName, "https://") {
-		urlToLoad = fileName
+	if strings.HasPrefix(fileDefinition.PublicUri, "http://") || strings.HasPrefix(fileDefinition.PublicUri, "https://") {
+		// the public URI is already a full URL (e.g. an S3/CDN target with an absolute baseUri)
+		// -> use it directly, without prepending the base URL.
+		urlToLoad = fileDefinition.PublicUri
 	} else if fileDefinition.IsAbsoluteUrl {
 		urlToLoad = strings.ReplaceAll(*rs.baseUrl, "/_Resources", "") + fileDefinition.PublicUri
 	} else {
