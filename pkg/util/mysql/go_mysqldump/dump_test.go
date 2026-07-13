@@ -253,6 +253,46 @@ func TestCreateTableAllValuesWithNil(t *testing.T) {
 	assert.EqualValues(t, expectedResults, results)
 }
 
+func TestCreateTableRowValuesUnsignedBigint(t *testing.T) {
+	data, mock, err := getMockData()
+	assert.NoError(t, err, "an error was not expected when opening a stub database connection")
+	defer data.Close()
+
+	cols := sqlmock.NewRows([]string{"Field", "Extra"}).
+		AddRow("sequencenumber", "auto_increment").
+		AddRow("version", "")
+
+	rows := sqlmock.NewRowsWithColumnDefinition(
+		sqlmock.NewColumn("sequencenumber").OfType("BIGINT UNSIGNED", uint64(0)).Nullable(false),
+		sqlmock.NewColumn("version").OfType("BIGINT UNSIGNED", uint64(0)).Nullable(false),
+	).
+		AddRow(uint64(1), uint64(0)).
+		AddRow(uint64(2), uint64(1))
+
+	mock.ExpectQuery("^SHOW COLUMNS FROM `test`$").WillReturnRows(cols)
+	mock.ExpectQuery("^SELECT (.+) FROM `test` WHERE TRUE$").WillReturnRows(rows)
+
+	table := data.createTable("test")
+
+	results := make([]string, 0)
+	for table.Next() {
+		row := table.RowValues()
+		assert.NoError(t, table.Err)
+		results = append(results, row)
+	}
+
+	// we make sure that all expectations were met
+	assert.NoError(t, mock.ExpectationsWereMet(), "there were unfulfilled expections")
+
+	expectedResults := []string{"(1,0)", "(2,1)"}
+
+	assert.EqualValues(t, expectedResults, results)
+
+	for _, r := range results {
+		assert.NotContains(t, r, "%!s", "row values must not contain a Go fmt bad-verb diagnostic string")
+	}
+}
+
 func TestCreateTableOk(t *testing.T) {
 	data, mock, err := getMockData()
 	assert.NoError(t, err, "an error was not expected when opening a stub database connection")
