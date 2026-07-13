@@ -442,7 +442,7 @@ func reflectColumnType(tp *sql.ColumnType) reflect.Type {
 
 	// determine by name
 	switch tp.DatabaseTypeName() {
-	case "BLOB", "BINARY":
+	case "BLOB", "BINARY", "VARBINARY":
 		return reflect.TypeOf(sql.RawBytes{})
 	case "VARCHAR", "TEXT", "DECIMAL", "JSON", "DATETIME", "DATE", "TIMESTAMP":
 		return reflect.TypeOf(sql.NullString{})
@@ -504,6 +504,12 @@ func (table *table) RowBuffer() *bytes.Buffer {
 		case *sql.NullInt64:
 			if s.Valid {
 				fmt.Fprintf(&b, "%d", s.Int64)
+			} else {
+				b.WriteString(nullType)
+			}
+		case *sql.Null[uint64]:
+			if s.Valid {
+				fmt.Fprintf(&b, "%d", s.V)
 			} else {
 				b.WriteString(nullType)
 			}

@@ -3,6 +3,7 @@ package go_mysqldump
 import (
 	"bytes"
 	"database/sql"
+	"encoding/hex"
 	"reflect"
 	"strings"
 	"testing"
@@ -291,6 +292,75 @@ func TestCreateTableRowValuesUnsignedBigint(t *testing.T) {
 	for _, r := range results {
 		assert.NotContains(t, r, "%!s", "row values must not contain a Go fmt bad-verb diagnostic string")
 	}
+}
+
+// The MySQL driver scans a nullable BIGINT UNSIGNED column into a
+// sql.Null[uint64], distinct from the non-nullable case above which scans
+// into a plain uint64. Reproduces the corrupted-dump bug where such values
+// were rendered via a Go fmt bad-verb diagnostic string instead of the
+// numeric literal.
+func TestCreateTableRowValuesNullableUnsignedBigint(t *testing.T) {
+	data, mock, err := getMockData()
+	assert.NoError(t, err, "an error was not expected when opening a stub database connection")
+	defer data.Close()
+
+	cols := sqlmock.NewRows([]string{"Field", "Extra"}).
+		AddRow("version", "")
+
+	rows := sqlmock.NewRowsWithColumnDefinition(
+		sqlmock.NewColumn("version").OfType("UNSIGNED BIGINT", sql.Null[uint64]{}).Nullable(true),
+	).
+		AddRow(uint64(1469))
+
+	mock.ExpectQuery("^SHOW COLUMNS FROM `test`$").WillReturnRows(cols)
+	mock.ExpectQuery("^SELECT (.+) FROM `test` WHERE TRUE$").WillReturnRows(rows)
+
+	table := data.createTable("test")
+
+	assert.True(t, table.Next())
+	result := table.RowValues()
+	assert.NoError(t, table.Err)
+
+	// we make sure that all expectations were met
+	assert.NoError(t, mock.ExpectationsWereMet(), "there were unfulfilled expections")
+
+	assert.Equal(t, "(1469)", result)
+	assert.NotContains(t, result, "%!s", "row values must not contain a Go fmt bad-verb diagnostic string")
+}
+
+// The MySQL driver scans VARBINARY columns (e.g. UUIDs stored as raw bytes)
+// into a plain []byte, distinct from BINARY which is handled explicitly.
+// Reproduces the corrupted-dump bug where such values were rendered as a
+// quoted string with a stray leading '&' instead of a `_binary 0x...` literal.
+func TestCreateTableRowValuesVarbinary(t *testing.T) {
+	data, mock, err := getMockData()
+	assert.NoError(t, err, "an error was not expected when opening a stub database connection")
+	defer data.Close()
+
+	uuid := "5430b48d-cfd5-47c7-ae6d-04c7e2ed2a21"
+
+	cols := sqlmock.NewRows([]string{"Field", "Extra"}).
+		AddRow("id", "")
+
+	rows := sqlmock.NewRowsWithColumnDefinition(
+		sqlmock.NewColumn("id").OfType("VARBINARY", []byte{}).Nullable(false),
+	).
+		AddRow([]byte(uuid))
+
+	mock.ExpectQuery("^SHOW COLUMNS FROM `test`$").WillReturnRows(cols)
+	mock.ExpectQuery("^SELECT (.+) FROM `test` WHERE TRUE$").WillReturnRows(rows)
+
+	table := data.createTable("test")
+
+	assert.True(t, table.Next())
+	result := table.RowValues()
+	assert.NoError(t, table.Err)
+
+	// we make sure that all expectations were met
+	assert.NoError(t, mock.ExpectationsWereMet(), "there were unfulfilled expections")
+
+	assert.Equal(t, "(_binary 0x"+hex.EncodeToString([]byte(uuid))+")", result)
+	assert.NotContains(t, result, "&"+uuid, "row values must not contain the raw UUID string with a stray leading '&'")
 }
 
 func TestCreateTableOk(t *testing.T) {
