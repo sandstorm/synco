@@ -10,7 +10,7 @@ require (
 	github.com/dop251/goja v0.0.0-20221003171542-5ea1285e6c91
 	github.com/dustin/go-humanize v1.0.1
 	github.com/go-sql-driver/mysql v1.10.0
-	github.com/jamf/go-mysqldump v0.7.1
+	github.com/jamf/go-mysqldump v0.8.1
 	github.com/logrusorgru/aurora v2.0.3+incompatible
 	github.com/manifoldco/promptui v0.9.0
 	github.com/orlangure/gnomock v0.23.0
