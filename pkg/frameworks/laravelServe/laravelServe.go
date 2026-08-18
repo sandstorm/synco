@@ -58,11 +58,24 @@ func (ldo *laravelDatabaseOptions) ToDbCredentials() *common.DbCredentials {
 		pterm.Warning.Printfln("Could not extract DB connection, WILL NOT INCLUDE DB DUMP.")
 		return nil
 	}
-	port := 3306
+	driver := common.DbDriverMysql
+	defaultPort := 3306
+	switch connection.Driver {
+	case "pgsql":
+		driver = common.DbDriverPostgres
+		defaultPort = 5432
+	case "mysql", "":
+		// already defaulted above
+	default:
+		pterm.Warning.Printfln("unrecognized database driver '%s', falling back to mysql", connection.Driver)
+	}
+
+	port := defaultPort
 	if len(connection.Port) != 0 {
 		port, _ = strconv.Atoi(connection.Port)
 	}
 	return &common.DbCredentials{
+		Driver:   driver,
 		Host:     connection.Host,
 		Port:     port,
 		User:     connection.Username,

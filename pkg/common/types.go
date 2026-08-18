@@ -16,7 +16,15 @@ type ServeFramework interface {
 	Serve(metadata *serve.TransferSession)
 }
 
+type DbDriver string
+
+const (
+	DbDriverMysql    DbDriver = "mysql"
+	DbDriverPostgres DbDriver = "postgres"
+)
+
 type DbCredentials struct {
+	Driver   DbDriver
 	Host     string
 	Port     int
 	User     string

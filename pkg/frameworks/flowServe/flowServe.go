@@ -121,11 +121,24 @@ type flowPersistenceBackendOptions struct {
 }
 
 func (fp *flowPersistenceBackendOptions) ToDbCredentials() *common.DbCredentials {
-	port := 3306
+	driver := common.DbDriverMysql
+	defaultPort := 3306
+	switch fp.Driver {
+	case "pdo_pgsql":
+		driver = common.DbDriverPostgres
+		defaultPort = 5432
+	case "pdo_mysql", "":
+		// already defaulted above
+	default:
+		pterm.Warning.Printfln("unrecognized Neos.Flow.persistence.backendOptions.driver '%s', falling back to mysql", fp.Driver)
+	}
+
+	port := defaultPort
 	if len(fp.Port) != 0 {
 		port, _ = strconv.Atoi(fp.Port)
 	}
 	return &common.DbCredentials{
+		Driver:   driver,
 		Host:     fp.Host,
 		Port:     port,
 		User:     fp.User,
