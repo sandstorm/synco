@@ -76,6 +76,8 @@ var ReceiveCmd = &cobra.Command{
 			switch fileSet.Type {
 			case dto.TYPE_MYSQLDUMP:
 				err = downloadMysqldump(receiveSession, fileSet)
+			case dto.TYPE_POSTGRESDUMP:
+				err = downloadPostgresdump(receiveSession, fileSet)
 			case dto.TYPE_PUBLICFILES:
 				err = downloadPublicFiles(receiveSession, fileSet)
 			case dto.TYPE_PRIVATE_ENCRYPTED_FILES:
@@ -216,6 +218,10 @@ func detectBaseUrlAndUpdateReceiveSession(rs *receive.ReceiveSession) error {
 
 func downloadMysqldump(receiveSession *receive.ReceiveSession, fileSet *dto.FileSet) error {
 	return receiveSession.DumpAndDecryptFileWithProgressBar(fileSet.MysqlDump.FileName, fileSet.Name+".sql")
+}
+
+func downloadPostgresdump(receiveSession *receive.ReceiveSession, fileSet *dto.FileSet) error {
+	return receiveSession.DumpAndDecryptFileWithProgressBar(fileSet.PostgresDump.FileName, fileSet.Name+".sql")
 }
 
 func downloadPublicFiles(receiveSession *receive.ReceiveSession, fileSet *dto.FileSet) error {

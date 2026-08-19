@@ -84,10 +84,15 @@ Features:
 * **multiple file-sets** supported. This means you can choose to only sync your database, but not your binary resources/assets.
 * **Speed Optimized**: publicly available binary assets are not zipped extra; but the already-public files are simply downloaded.
   Resources which already exist locally and have the same file size and modification date are never re-downloaded.
-* **no extra SQL client needed**: We package a custom implementation of `mysqldump` into the binary.
+* **no extra SQL client needed**: We package a custom implementation of `mysqldump`/`pg_dump` into the binary - no
+  `mysqldump`, `pg_dump` or `psql` binary is ever shelled out to.
   * currently supported databases:
-    * **MySQL**
-    * (Postgres support planned)
+    * **MySQL / MariaDB**
+    * **PostgreSQL** - full schema reconstruction (columns/types, NOT NULL, defaults, PK/UNIQUE/CHECK/FK constraints,
+      indexes, sequence/identity state) from `pg_catalog`, with data streamed via `COPY ... FROM stdin`. Not (yet)
+      dumped: `CREATE TYPE`/`CREATE EXTENSION` (enum *values* round-trip, but the type/extension must already exist
+      on the target), non-`public` schemas, materialized views, partitioned tables, table inheritance,
+      triggers/functions, comments, and GRANTs/ownership.
 * **auto-cleanup**: remove dumps when tool is stopped
 
 # Installation

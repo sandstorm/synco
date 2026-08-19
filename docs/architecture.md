@@ -56,8 +56,11 @@ The destination server will only fetch data from the source; and never the other
 on the source server (e.g. the production system), the user needs to log in, and then invoke the `synco-lite` executable. This does:
 
 * install synco-source via a shell script
-* Detect which framework is used. E.g. for Flow/Neos or Symfony, synco then knows how to create a database dump (e.g. for MySQL, using go-mysqldump or
-  pingcap dumpling; and for Postgres some pgx based solution??)
+* Detect which framework is used. E.g. for Flow/Neos or Symfony, synco then knows how to create a database dump
+  (for MySQL/MariaDB, using our vendored `go_mysqldump`; for PostgreSQL, using `pkg/util/postgres` + `pgx`, which
+  reconstructs full schema DDL from `pg_catalog` and streams data via `COPY ... FROM stdin` - see the "known
+  limitations" note in `docs/README.md` for what isn't (yet) covered on the Postgres side: custom types/extensions,
+  non-`public` schemas, materialized views, partitioned tables, triggers/functions, comments, GRANTs)
 * Publish a metadata file and encrypt it which shows the current status.
 * Create the database dump and encrypt it.
 * Create a file mapping for data/persistent in flow - as we do not need to re-compress static assets which are available online.
